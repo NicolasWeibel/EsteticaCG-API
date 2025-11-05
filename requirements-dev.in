@@ -1,0 +1,8 @@
+-r requirements.in
+pytest
+pytest-django
+factory_boy
+black
+isort
+ruff
+pip-audit

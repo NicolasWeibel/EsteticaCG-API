@@ -1,0 +1,10 @@
+Django>=5.0
+djangorestframework
+django-filter
+django-environ
+django-cors-headers
+psycopg[binary]
+djangorestframework-simplejwt
+celery[redis]
+channels
+django-redis
