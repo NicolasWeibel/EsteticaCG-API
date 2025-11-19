@@ -1,7 +1,7 @@
 from rest_framework import viewsets
 from ..permissions import IsAdminOrReadOnly
 from ..models import Treatment
-from ..serializers.treatment import TreatmentSerializer
+from ..serializers import TreatmentSerializer
 
 
 class TreatmentViewSet(viewsets.ModelViewSet):

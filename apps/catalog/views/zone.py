@@ -1,6 +1,6 @@
 from rest_framework import viewsets
 from ..models import Zone
-from ..serializers.zone import ZoneSerializer
+from ..serializers import ZoneSerializer
 from ..permissions import IsAdminOrReadOnly
 
 

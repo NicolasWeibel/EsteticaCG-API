@@ -1,6 +1,6 @@
 from rest_framework import viewsets
 from ..models import Combo
-from ..serializers.combo import ComboSerializer
+from ..serializers import ComboSerializer
 from ..permissions import IsAdminOrReadOnly
 
 

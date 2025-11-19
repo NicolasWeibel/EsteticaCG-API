@@ -1,17 +1,11 @@
-# apps/catalog/api/v1/serializers.py
-
-from apps.catalog.serializers.treatment import (
+from apps.catalog.serializers import (
     TreatmentSerializer,
     TreatmentZoneConfigSerializer,
-)
-from apps.catalog.serializers.combo import (
     ComboSerializer,
     ComboIngredientSerializer,
     ComboStepSerializer,
     ComboStepItemSerializer,
-)
-from apps.catalog.serializers.journey import JourneySerializer
-from apps.catalog.serializers.filters import (
+    JourneySerializer,
     CategorySerializer,
     ZoneSerializer,
     TreatmentTypeSerializer,

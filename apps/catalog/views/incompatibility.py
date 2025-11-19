@@ -1,6 +1,6 @@
 from rest_framework import viewsets
 from ..models import TreatmentZoneIncompatibility
-from ..serializers.incompatibility import TreatmentZoneIncompatibilitySerializer
+from ..serializers import TreatmentZoneIncompatibilitySerializer
 from ..permissions import IsAdminOnly
 
 

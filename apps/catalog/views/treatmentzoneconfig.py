@@ -1,6 +1,6 @@
 from rest_framework import viewsets
 from ..models import TreatmentZoneConfig
-from ..serializers.treatmentzoneconfig import TreatmentZoneConfigSerializer
+from ..serializers import TreatmentZoneConfigSerializer
 from ..permissions import IsAdminOrReadOnly
 
 

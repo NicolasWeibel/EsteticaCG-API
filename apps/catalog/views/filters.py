@@ -1,6 +1,6 @@
 from rest_framework import viewsets
 from ..models import TreatmentType, Objective, IntensityLevel, DurationBucket
-from ..serializers.filters import (
+from ..serializers import (
     TreatmentTypeSerializer,
     ObjectiveSerializer,
     IntensityLevelSerializer,

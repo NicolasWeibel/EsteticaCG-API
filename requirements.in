@@ -8,3 +8,8 @@ djangorestframework-simplejwt
 celery[redis]
 channels
 django-redis
+django-allauth
+dj-rest-auth
+drf-spectacular
+sentry-sdk
+cryptography

@@ -2,10 +2,10 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from apps.catalog.models import *
-from apps.catalog.serializers.treatment import TreatmentSerializer
-from apps.catalog.serializers.combo import ComboSerializer
-from apps.catalog.serializers.journey import JourneySerializer
-from apps.catalog.serializers.filters import (
+from apps.catalog.serializers import (
+    TreatmentSerializer,
+    ComboSerializer,
+    JourneySerializer,
     CategorySerializer,
     ZoneSerializer,
     TreatmentTypeSerializer,

@@ -1,6 +1,6 @@
 from rest_framework import viewsets
 from ..models import Journey
-from ..serializers.journey import JourneySerializer
+from ..serializers import JourneySerializer
 from ..permissions import IsAdminOrReadOnly
 
 
