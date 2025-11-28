@@ -44,6 +44,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -85,15 +86,23 @@ CONN_MAX_AGE = env.int("CONN_MAX_AGE", default=0)
 DISABLE_SERVER_SIDE_CURSORS = env.bool("DISABLE_SERVER_SIDE_CURSORS", default=True)
 
 # Cache (Redis) -> DRF throttling/otros
-REDIS_URL = env("REDIS_URL", default="redis://127.0.0.1:6379/1")
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": REDIS_URL,
-        "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
-        "KEY_PREFIX": env("CACHE_KEY_PREFIX", default="core"),
+REDIS_URL = os.getenv("REDIS_URL", None)
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": REDIS_URL,
+            "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
+            "KEY_PREFIX": env("CACHE_KEY_PREFIX", default="core"),
+        }
     }
-}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "unique-snowflake",
+        }
+    }
 
 LANGUAGE_CODE = "es"
 TIME_ZONE = env("TIME_ZONE", default="America/Argentina/Buenos_Aires")
@@ -101,6 +110,9 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+# Solo usamos el almacenamiento comprimido si NO estamos en modo DEBUG (o sea, en producción/staging)
+if not DEBUG:
+    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 # Opcional (deploy):
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
@@ -210,8 +222,13 @@ if DEBUG:
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@example.com")
 
 # Celery
-CELERY_BROKER_URL = env("CELERY_BROKER_URL", default=REDIS_URL)
-CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=REDIS_URL)
+CELERY_BROKER_URL = env(
+    "CELERY_BROKER_URL", default=REDIS_URL if REDIS_URL else "memory://"
+)
+CELERY_RESULT_BACKEND = env(
+    "CELERY_RESULT_BACKEND",
+    default=REDIS_URL if REDIS_URL else "db+sqlite:///results.sqlite",
+)
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_ALWAYS_EAGER = env.bool(
     "CELERY_TASK_ALWAYS_EAGER", default=False

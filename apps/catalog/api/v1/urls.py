@@ -4,6 +4,7 @@ from apps.catalog.views.catalog import CatalogSummaryView
 from apps.catalog.views.treatment import TreatmentViewSet
 from apps.catalog.views.combo import ComboViewSet
 from apps.catalog.views.journey import JourneyViewSet
+from apps.catalog.views.category import CategoryViewSet
 from apps.catalog.views.zone import ZoneViewSet
 from apps.catalog.views.treatmentzoneconfig import TreatmentZoneConfigViewSet
 from apps.catalog.views.incompatibility import TreatmentZoneIncompatibilityViewSet
@@ -18,6 +19,7 @@ router = DefaultRouter()
 router.register(r"treatments", TreatmentViewSet)
 router.register(r"combos", ComboViewSet)
 router.register(r"journeys", JourneyViewSet)
+router.register(r"categories", CategoryViewSet)
 router.register(r"zones", ZoneViewSet)
 router.register(r"zone-configs", TreatmentZoneConfigViewSet)
 router.register(r"incompatibilities", TreatmentZoneIncompatibilityViewSet)

@@ -13,3 +13,6 @@ dj-rest-auth
 drf-spectacular
 sentry-sdk
 cryptography
+gunicorn
+uvicorn[standard]
+whitenoise
