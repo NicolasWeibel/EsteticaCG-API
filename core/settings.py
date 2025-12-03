@@ -6,7 +6,7 @@ from datetime import timedelta
 BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env()
 
-# ── cargar .env según ENV
+# ── CARGAR .ENV (SEGÚN ENTORNO) ──
 ENV = os.getenv("ENV", "development")
 environ.Env.read_env(BASE_DIR / f".env.{ENV}")
 
@@ -22,20 +22,22 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "cloudinary_storage",
+    "cloudinary",  # SDK general
     "django.contrib.sites",
-    # terceros
+    # Terceros
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
     "django_filters",
     "corsheaders",
     "channels",
-    "drf_spectacular",  # OpenAPI
+    "drf_spectacular",
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
     "dj_rest_auth",
-    # apps propias
+    # Apps propias
     "apps.users",
     "apps.authcodes",
     "apps.catalog",
@@ -44,7 +46,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # 👈 Vital para el CSS en Cloud Run
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -54,18 +56,22 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+# ── CORS Y SEGURIDAD ──
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+
+# Permitir cookies en entornos cruzados (Localhost <-> Cloud Run)
+SESSION_COOKIE_SAMESITE = "None"
+CSRF_COOKIE_SAMESITE = "None"
 
 ROOT_URLCONF = "core.urls"
 
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        # si querés plantillas propias, crea la carpeta "templates" en la raíz
         "DIRS": [BASE_DIR / "templates"],
-        "APP_DIRS": True,  # busca templates dentro de cada app (admin incluido)
+        "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.debug",
@@ -78,14 +84,14 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "core.wsgi.application"
-ASGI_APPLICATION = "core.asgi.application"  # Channels listo
+ASGI_APPLICATION = "core.asgi.application"
 
-# ── DB y pooling estilo Supabase
+# ── BASE DE DATOS ──
 DATABASES = {"default": env.db("DATABASE_URL")}
 CONN_MAX_AGE = env.int("CONN_MAX_AGE", default=0)
 DISABLE_SERVER_SIDE_CURSORS = env.bool("DISABLE_SERVER_SIDE_CURSORS", default=True)
 
-# Cache (Redis) -> DRF throttling/otros
+# ── CACHÉ (REDIS O MEMORIA) ──
 REDIS_URL = os.getenv("REDIS_URL", None)
 if REDIS_URL:
     CACHES = {
@@ -109,15 +115,30 @@ TIME_ZONE = env("TIME_ZONE", default="America/Argentina/Buenos_Aires")
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
-# Solo usamos el almacenamiento comprimido si NO estamos en modo DEBUG (o sea, en producción/staging)
-if not DEBUG:
-    STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
-# Opcional (deploy):
+# ── ARCHIVOS ESTÁTICOS (CSS/JS - WhiteNoise) ──
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-MEDIA_URL = "media/"
+
+# Activamos WhiteNoise solo en producción/staging
+if not DEBUG:
+    STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
+
+# ── ARCHIVOS MEDIA (Imágenes - Cloudinary) ──
+MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+CLOUDINARY_STORAGE = {
+    "CLOUD_NAME": env("CLOUDINARY_CLOUD_NAME", default=""),
+    "API_KEY": env("CLOUDINARY_API_KEY", default=""),
+    "API_SECRET": env("CLOUDINARY_API_SECRET", default=""),
+    "MEDIA_TAG": env("CLOUDINARY_FOLDER", default="estetica-general"),
+    "PREFIX": env("CLOUDINARY_FOLDER", default="estetica-general"),
+}
+
+# Usamos Cloudinary SOLO para archivos subidos (Media), no para estáticos
+DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+
+# ── DRF ──
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -140,11 +161,11 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": "60/min",
         "user": "120/min",
-        "request_code": "5/min",  # usado por RequestCodeThrottle
+        "request_code": "5/min",
     },
 }
 
-# OpenAPI
+# ── OPENAPI ──
 SPECTACULAR_SETTINGS = {
     "TITLE": env("OPENAPI_TITLE", default="API"),
     "DESCRIPTION": "API schema",
@@ -152,8 +173,7 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-
-# SimpleJWT
+# ── JWT ──
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
@@ -162,7 +182,7 @@ SIMPLE_JWT = {
     "UPDATE_LAST_LOGIN": True,
 }
 
-# ── Users / allauth / dj-rest-auth
+# ── AUTH & ALLAUTH ──
 AUTH_USER_MODEL = "users.User"
 SITE_ID = int(env("SITE_ID", default=1))
 
@@ -216,7 +236,7 @@ REST_AUTH = {
     "TOKEN_MODEL": None,
 }
 
-# Email
+# ── EMAIL & CELERY ──
 if DEBUG:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@example.com")
@@ -230,12 +250,10 @@ CELERY_RESULT_BACKEND = env(
     default=REDIS_URL if REDIS_URL else "db+sqlite:///results.sqlite",
 )
 CELERY_TIMEZONE = TIME_ZONE
-CELERY_TASK_ALWAYS_EAGER = env.bool(
-    "CELERY_TASK_ALWAYS_EAGER", default=False
-)  # True en tests si quieres
+CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_TASK_ALWAYS_EAGER", default=False)
 CELERY_TASK_EAGER_PROPAGATES = True
 
-# Sentry (silencioso si no hay DSN)
+# ── SENTRY ──
 try:
     import sentry_sdk
     from sentry_sdk.integrations.django import DjangoIntegration
@@ -252,6 +270,7 @@ try:
 except Exception:
     pass
 
+# Seguridad HTTPS
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = True

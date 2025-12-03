@@ -5,7 +5,7 @@ from ..models import Combo, ComboIngredient, ComboStep, ComboStepItem
 class ComboIngredientInline(admin.TabularInline):
     model = ComboIngredient
     extra = 1
-    autocomplete_fields = ("treatment", "zone")
+    autocomplete_fields = ("treatment_zone_config",)
 
 
 class ComboStepItemInline(admin.TabularInline):

@@ -5,7 +5,7 @@ from .category import Category
 
 class ItemBase(TimeStampedUUIDModel):
     slug = models.SlugField(max_length=120, unique=True)
-    title = models.CharField(max_length=200)
+    title = models.CharField(max_length=200, unique=True)
     description = models.TextField(blank=True)
     image = models.URLField(blank=True, null=True)
     modal_title = models.CharField(max_length=200, blank=True)

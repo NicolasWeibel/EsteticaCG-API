@@ -1,3 +1,6 @@
+from django.db import transaction
+from rest_framework import serializers
+
 from ..models import Treatment
 from .treatmentzoneconfig import TreatmentZoneConfigSerializer
 from .base import UUIDSerializer
@@ -9,3 +12,53 @@ class TreatmentSerializer(UUIDSerializer):
     class Meta:
         model = Treatment
         fields = "__all__"
+
+    def validate(self, attrs):
+        zone_configs = attrs.get("zone_configs")
+        requires_zones = attrs.get(
+            "requires_zones",
+            self.instance.requires_zones if self.instance else False,
+        )
+
+        if requires_zones:
+            has_zones = (
+                bool(zone_configs)
+                if zone_configs is not None
+                else bool(self.instance and self.instance.zone_configs.exists())
+            )
+            if not has_zones:
+                raise serializers.ValidationError(
+                    {
+                        "zone_configs": "Este tratamiento requiere al menos una zona configurada."
+                    }
+                )
+        return attrs
+
+    def _save_zone_configs(self, treatment, zone_configs):
+        normalized = [
+            {**cfg, "zone": getattr(cfg.get("zone"), "id", cfg.get("zone"))}
+            for cfg in zone_configs
+        ]
+        ser = TreatmentZoneConfigSerializer(
+            data=normalized, many=True, context=self.context
+        )
+        ser.is_valid(raise_exception=True)
+        ser.save(treatment=treatment)
+
+    def create(self, validated_data):
+        zone_configs = validated_data.pop("zone_configs", [])
+        with transaction.atomic():
+            treatment = super().create(validated_data)
+            if zone_configs:
+                self._save_zone_configs(treatment, zone_configs)
+            return treatment
+
+    def update(self, instance, validated_data):
+        zone_configs = validated_data.pop("zone_configs", None)
+        with transaction.atomic():
+            treatment = super().update(instance, validated_data)
+            if zone_configs is not None:
+                treatment.zone_configs.all().delete()
+                if zone_configs:
+                    self._save_zone_configs(treatment, zone_configs)
+            return treatment

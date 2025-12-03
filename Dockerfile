@@ -23,7 +23,7 @@ COPY . .
 
 # 7. Recolectamos los archivos estáticos (CSS, JS) en una sola carpeta
 # Usamos variables falsas solo para que este comando no falle al construir
-RUN DATABASE_URL="sqlite:///" SECRET_KEY="dummy-secret-key-build" python manage.py collectstatic --noinput --settings=core.settings
+RUN DATABASE_URL="sqlite:///" SECRET_KEY="dummy-secret-key-build" DEBUG=0 ENV=staging python manage.py collectstatic --noinput --settings=core.settings
 
 # 8. Cloud Run nos dará un puerto, por defecto 8080
 EXPOSE 8080

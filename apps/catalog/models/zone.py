@@ -5,7 +5,7 @@ from .category import Category
 
 
 class Zone(TimeStampedUUIDModel):
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, unique=True)
     category = models.ForeignKey(
         Category,
         on_delete=models.PROTECT,  # evita borrar Cat si hay Zonas

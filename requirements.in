@@ -16,3 +16,5 @@ cryptography
 gunicorn
 uvicorn[standard]
 whitenoise
+cloudinary
+django-cloudinary-storage

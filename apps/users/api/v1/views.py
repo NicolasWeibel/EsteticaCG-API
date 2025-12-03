@@ -48,17 +48,33 @@ class GoogleLoginStartView(APIView):
 
 class GoogleLoginCompleteView(APIView):
     permission_classes = [permissions.AllowAny]
-    authentication_classes = [SessionAuthentication]  # valida sesión si existe
+    authentication_classes = [SessionAuthentication]
 
     def get(self, request):
-        # si no hay sesión, vuelve a iniciar el flujo
+        # 1. Si el usuario no se autenticó, volver al inicio
         if not request.user.is_authenticated:
             nxt = _safe_next(request.GET.get("next"))
             qs = urlencode({"next": nxt})
             start = request.build_absolute_uri(reverse("users_api_v1:google-start"))
             return HttpResponseRedirect(f"{start}?{qs}")
-        # si hay sesión, redirige al frontend (SPA luego hará session→JWT)
-        return HttpResponseRedirect(_safe_next(request.GET.get("next")))
+
+        # 2. Login exitoso: Generamos los tokens MANUALMENTE
+        refresh = RefreshToken.for_user(request.user)
+        access_token = str(refresh.access_token)
+        refresh_token = str(refresh)
+
+        # 3. Construimos la URL de regreso
+        target_url = _safe_next(request.GET.get("next"))
+
+        # Detectamos si usamos '?' o '&' para no romper la URL
+        separator = "&" if "?" in target_url else "?"
+
+        # 4. Redirigimos al frontend con los tokens en la URL
+        final_url = (
+            f"{target_url}{separator}access={access_token}&refresh={refresh_token}"
+        )
+
+        return HttpResponseRedirect(final_url)
 
 
 class SessionToJWTView(APIView):
