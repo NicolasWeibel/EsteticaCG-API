@@ -8,5 +8,10 @@ class ComboViewSet(viewsets.ModelViewSet):
     queryset = Combo.objects.all().order_by("-title")
     serializer_class = ComboSerializer
     permission_classes = [IsAdminOrReadOnly]
-    filterset_fields = ["category", "journey"]
+    filterset_fields = [
+        "category",
+        "journey",
+        "sessions",
+        "min_session_interval_days",
+    ]
     search_fields = ["title", "description"]

@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 from .item_base import ItemBase
 from .base import TimeStampedUUIDModel
@@ -10,6 +11,10 @@ class Combo(ItemBase):
     promotional_price = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True
     )
+    sessions = models.PositiveSmallIntegerField(
+        default=1, validators=[MinValueValidator(1)]
+    )
+    min_session_interval_days = models.PositiveSmallIntegerField(default=0)
 
     # reglas declarativas opcionales (zonas seleccionables, máximos, etc.)
     rules = models.JSONField(default=dict, blank=True)
@@ -32,6 +37,13 @@ class Combo(ItemBase):
                     | models.Q(promotional_price__lt=models.F("price"))
                 ),
                 name="ck_combo_promo_lt_price",
+            ),
+            models.CheckConstraint(
+                check=models.Q(sessions__gte=1), name="ck_combo_sessions_gte_1"
+            ),
+            models.CheckConstraint(
+                check=models.Q(min_session_interval_days__gte=0),
+                name="ck_combo_min_session_interval_days_gte_0",
             ),
         ]
 

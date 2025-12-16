@@ -30,6 +30,8 @@ class ComboAdmin(admin.ModelAdmin):
         "journey",
         "price",
         "promotional_price",
+        "sessions",
+        "min_session_interval_days",
         "order",
         "is_active",
         "is_featured",
