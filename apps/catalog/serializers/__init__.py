@@ -9,6 +9,11 @@ from .treatmentzoneconfig import TreatmentZoneConfigSerializer
 from .treatment import TreatmentSerializer
 from .journey import JourneySerializer
 from .incompatibility import TreatmentZoneIncompatibilitySerializer
+from .gallery import (
+    TreatmentImageSerializer,
+    ComboImageSerializer,
+    JourneyImageSerializer,
+)
 from .combo import (
     ComboIngredientSerializer,
     ComboStepItemSerializer,
@@ -30,13 +35,16 @@ __all__ = [
     "ZoneSerializer",
     "TreatmentZoneConfigSerializer",
     "TreatmentSerializer",
+    "TreatmentImageSerializer",
     "JourneySerializer",
+    "JourneyImageSerializer",
     "TreatmentZoneIncompatibilitySerializer",
     # combo
     "ComboIngredientSerializer",
     "ComboStepItemSerializer",
     "ComboStepSerializer",
     "ComboSerializer",
+    "ComboImageSerializer",
     # filters
     "TreatmentTypeSerializer",
     "ObjectiveSerializer",

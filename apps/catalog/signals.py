@@ -1,7 +1,11 @@
-from django.db.models.signals import post_save
+from django.db import transaction
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
+import cloudinary.uploader
+
 from .models.treatment import TreatmentZoneConfig
 from .models.incompatibility import TreatmentZoneIncompatibility, positions_overlap
+from .models import TreatmentImage, ComboImage, JourneyImage
 
 
 @receiver(post_save, sender=TreatmentZoneConfig)
@@ -25,6 +29,47 @@ def purge_invalid_incompatibilities(sender, instance: TreatmentZoneConfig, **kwa
             or not positions_overlap(a.body_position, b.body_position)
         ):
             inc.delete()
+
+
+# =========================
+# Galería: cleanup + orden
+# =========================
+
+def delete_cloudinary_file(image_field):
+    if image_field:
+        try:
+            cloudinary.uploader.destroy(image_field.name)
+        except Exception as exc:
+            print(f"Error Cloudinary: {exc}")
+
+
+def reorder_siblings(queryset):
+    with transaction.atomic():
+        updates = []
+        for index, img in enumerate(queryset.order_by("order")):
+            if img.order != index:
+                img.order = index
+                updates.append(img)
+        if updates:
+            queryset.model.objects.bulk_update(updates, ["order"])
+
+
+@receiver(post_delete, sender=TreatmentImage)
+def cleanup_treatment_image(sender, instance, **kwargs):
+    delete_cloudinary_file(instance.image)
+    reorder_siblings(instance.treatment.images.all())
+
+
+@receiver(post_delete, sender=ComboImage)
+def cleanup_combo_image(sender, instance, **kwargs):
+    delete_cloudinary_file(instance.image)
+    reorder_siblings(instance.combo.images.all())
+
+
+@receiver(post_delete, sender=JourneyImage)
+def cleanup_journey_image(sender, instance, **kwargs):
+    delete_cloudinary_file(instance.image)
+    reorder_siblings(instance.journey.images.all())
 
     # pares donde instance es right
     right_qs = TreatmentZoneIncompatibility.objects.filter(

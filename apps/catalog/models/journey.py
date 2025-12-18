@@ -13,7 +13,6 @@ class Journey(TimeStampedUUIDModel):
     slug = models.SlugField(max_length=100, unique=True)
     title = models.CharField(max_length=200, unique=True)
     description = models.TextField(blank=True)
-    image = models.ImageField(upload_to="journeys/", blank=True, null=True)
     category = models.ForeignKey(
         Category, on_delete=models.CASCADE, related_name="journeys"
     )

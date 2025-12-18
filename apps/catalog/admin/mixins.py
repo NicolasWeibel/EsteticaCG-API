@@ -7,24 +7,32 @@ class CloudinaryImageAdminMixin:
     Mixin para mostrar miniaturas de Cloudinary en listas y detalles.
     """
 
+    def _get_primary_image(self, obj):
+        gallery = getattr(obj, "images", None)
+        if gallery is not None:
+            first = gallery.first()
+            if first and getattr(first, "image", None):
+                return first.image
+        return getattr(obj, "image", None)
+
     def image_preview_list(self, obj):
-        if obj.image:
-            # Transformación: 50x50, recorte centrado (face detection si es posible), formato auto
-            url = obj.image.url.replace(
+        image_field = self._get_primary_image(obj)
+        if image_field:
+            url = image_field.url.replace(
                 "/upload/", "/upload/w_50,h_50,c_fill,g_face,q_auto,f_auto/"
             )
             return format_html(
                 '<img src="{}" width="50" height="50" style="border-radius: 50%; object-fit: cover;" />',
                 url,
             )
-        return "—"
+        return "-"
 
     image_preview_list.short_description = "Img"
 
     def image_preview_detail(self, obj):
-        if obj.image:
-            # Transformación: Ancho 300px, altura proporcional
-            url = obj.image.url.replace(
+        image_field = self._get_primary_image(obj)
+        if image_field:
+            url = image_field.url.replace(
                 "/upload/", "/upload/w_300,c_limit,q_auto,f_auto/"
             )
             return format_html(

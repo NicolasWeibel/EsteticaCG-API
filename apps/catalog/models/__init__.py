@@ -3,6 +3,7 @@ from .category import *
 from .zone import *
 from .filters import *
 from .item_base import *
+from .gallery import *
 from .journey import *
 from .treatment import *
 from .combo import *

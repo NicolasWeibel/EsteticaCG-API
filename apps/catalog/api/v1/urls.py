@@ -4,6 +4,11 @@ from apps.catalog.views.catalog import CatalogSummaryView
 from apps.catalog.views.treatment import TreatmentViewSet
 from apps.catalog.views.combo import ComboViewSet
 from apps.catalog.views.journey import JourneyViewSet
+from apps.catalog.views.gallery import (
+    TreatmentImageViewSet,
+    ComboImageViewSet,
+    JourneyImageViewSet,
+)
 from apps.catalog.views.category import CategoryViewSet
 from apps.catalog.views.zone import ZoneViewSet
 from apps.catalog.views.treatmentzoneconfig import TreatmentZoneConfigViewSet
@@ -17,8 +22,11 @@ from apps.catalog.views.filters import (
 
 router = DefaultRouter()
 router.register(r"treatments", TreatmentViewSet)
+router.register(r"treatment-images", TreatmentImageViewSet)
 router.register(r"combos", ComboViewSet)
+router.register(r"combo-images", ComboImageViewSet)
 router.register(r"journeys", JourneyViewSet)
+router.register(r"journey-images", JourneyImageViewSet)
 router.register(r"categories", CategoryViewSet)
 router.register(r"zones", ZoneViewSet)
 router.register(r"zone-configs", TreatmentZoneConfigViewSet)

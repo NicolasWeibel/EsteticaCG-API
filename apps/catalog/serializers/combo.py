@@ -1,6 +1,8 @@
 from django.db import transaction
-from ..models import Combo, ComboIngredient, ComboStep, ComboStepItem
+from rest_framework import serializers
+from ..models import Combo, ComboIngredient, ComboStep, ComboStepItem, ComboImage
 from .base import UUIDSerializer
+from .gallery import ComboImageSerializer
 
 
 class ComboIngredientSerializer(UUIDSerializer):
@@ -27,6 +29,13 @@ class ComboStepSerializer(UUIDSerializer):
 class ComboSerializer(UUIDSerializer):
     ingredients = ComboIngredientSerializer(many=True, required=False)
     steps = ComboStepSerializer(many=True, required=False, read_only=True)
+    images = ComboImageSerializer(many=True, read_only=True)
+    cover_image = serializers.SerializerMethodField()
+    uploaded_images = serializers.ListField(
+        child=serializers.ImageField(allow_empty_file=False, use_url=False),
+        write_only=True,
+        required=False,
+    )
 
     class Meta:
         model = Combo
@@ -51,18 +60,38 @@ class ComboSerializer(UUIDSerializer):
         ser.is_valid(raise_exception=True)
         ser.save(combo=combo)
 
+    def _create_images(self, combo, images):
+        start = combo.images.count()
+        to_create = []
+        for index, img_file in enumerate(images, start=start):
+            to_create.append(ComboImage(combo=combo, image=img_file, order=index))
+        if to_create:
+            ComboImage.objects.bulk_create(to_create)
+
+    def get_cover_image(self, obj):
+        first_img = obj.images.first()
+        if first_img:
+            return first_img.image.url
+        return None
+
     def create(self, validated_data):
         ingredients = validated_data.pop("ingredients", [])
+        uploaded_images = validated_data.pop("uploaded_images", [])
         with transaction.atomic():
             combo = super().create(validated_data)
+            if uploaded_images:
+                self._create_images(combo, uploaded_images)
             if ingredients:
                 self._save_ingredients(combo, ingredients)
             return combo
 
     def update(self, instance, validated_data):
         ingredients = validated_data.pop("ingredients", None)
+        uploaded_images = validated_data.pop("uploaded_images", [])
         with transaction.atomic():
             combo = super().update(instance, validated_data)
+            if uploaded_images:
+                self._create_images(combo, uploaded_images)
             if ingredients is not None:
                 instance.ingredients.all().delete()
                 if ingredients:

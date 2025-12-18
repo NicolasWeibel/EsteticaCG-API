@@ -1,8 +1,10 @@
 # apps/catalog/admin/treatment.py
 from django.contrib import admin
-from ..models import Treatment, TreatmentZoneConfig
+from django.utils.html import format_html
+
+from ..models import Treatment, TreatmentZoneConfig, TreatmentImage
 from .incompatibility import IncompatibilityInline, IncompatibilityInlineReverse
-from .mixins import CloudinaryImageAdminMixin  # 👈 Importamos
+from .mixins import CloudinaryImageAdminMixin  # ?? Importamos
 
 
 class TreatmentZoneConfigInline(admin.StackedInline):
@@ -11,6 +13,22 @@ class TreatmentZoneConfigInline(admin.StackedInline):
     fields = ("zone", "duration", "body_position", "price", "promotional_price")
     autocomplete_fields = ("zone",)
     show_change_link = True
+
+
+class TreatmentImageInline(admin.TabularInline):
+    model = TreatmentImage
+    extra = 1
+    fields = ("image_preview", "image", "alt_text", "order")
+    readonly_fields = ("image_preview",)
+    ordering = ("order",)
+
+    def image_preview(self, obj):
+        if obj.image:
+            return format_html(
+                '<img src="{}" style="height: 80px; border-radius: 5px;" />',
+                obj.image.url,
+            )
+        return ""
 
 
 @admin.register(TreatmentZoneConfig)
@@ -31,9 +49,9 @@ class TreatmentZoneConfigAdmin(admin.ModelAdmin):
 
 
 @admin.register(Treatment)
-class TreatmentAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):  # 👈 Heredamos
+class TreatmentAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):  # ?? Heredamos
     list_display = (
-        "image_preview_list",  # 👈 Agregamos foto
+        "image_preview_list",  # ?? Agregamos foto
         "title",
         "slug",
         "category",
@@ -52,7 +70,7 @@ class TreatmentAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):  # 👈 Hered
         "is_featured",
     )
     search_fields = ("title", "description", "slug")
-    inlines = [TreatmentZoneConfigInline]
+    inlines = [TreatmentImageInline, TreatmentZoneConfigInline]
 
     # Agregamos el preview a readonly
     readonly_fields = ("image_preview_detail", "id", "created_at", "updated_at")
