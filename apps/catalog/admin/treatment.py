@@ -1,6 +1,8 @@
+# apps/catalog/admin/treatment.py
 from django.contrib import admin
 from ..models import Treatment, TreatmentZoneConfig
 from .incompatibility import IncompatibilityInline, IncompatibilityInlineReverse
+from .mixins import CloudinaryImageAdminMixin  # 👈 Importamos
 
 
 class TreatmentZoneConfigInline(admin.StackedInline):
@@ -14,6 +16,7 @@ class TreatmentZoneConfigInline(admin.StackedInline):
 @admin.register(TreatmentZoneConfig)
 class TreatmentZoneConfigAdmin(admin.ModelAdmin):
     list_display = (
+        "id",
         "treatment",
         "zone",
         "body_position",
@@ -28,8 +31,9 @@ class TreatmentZoneConfigAdmin(admin.ModelAdmin):
 
 
 @admin.register(Treatment)
-class TreatmentAdmin(admin.ModelAdmin):
+class TreatmentAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):  # 👈 Heredamos
     list_display = (
+        "image_preview_list",  # 👈 Agregamos foto
         "title",
         "slug",
         "category",
@@ -49,7 +53,10 @@ class TreatmentAdmin(admin.ModelAdmin):
     )
     search_fields = ("title", "description", "slug")
     inlines = [TreatmentZoneConfigInline]
-    readonly_fields = ("id", "created_at", "updated_at")
+
+    # Agregamos el preview a readonly
+    readonly_fields = ("image_preview_detail", "id", "created_at", "updated_at")
+
     autocomplete_fields = (
         "category",
         "journey",

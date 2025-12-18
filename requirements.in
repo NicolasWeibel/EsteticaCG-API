@@ -18,3 +18,4 @@ uvicorn[standard]
 whitenoise
 cloudinary
 django-cloudinary-storage
+Pillow

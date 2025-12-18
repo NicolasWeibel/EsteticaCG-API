@@ -1,5 +1,7 @@
+# apps/catalog/admin/combo.py
 from django.contrib import admin
 from ..models import Combo, ComboIngredient, ComboStep, ComboStepItem
+from .mixins import CloudinaryImageAdminMixin
 
 
 class ComboIngredientInline(admin.TabularInline):
@@ -22,8 +24,9 @@ class ComboStepInline(admin.StackedInline):
 
 
 @admin.register(Combo)
-class ComboAdmin(admin.ModelAdmin):
+class ComboAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
     list_display = (
+        "image_preview_list",  # 👈 Foto
         "title",
         "slug",
         "category",
@@ -40,5 +43,8 @@ class ComboAdmin(admin.ModelAdmin):
     list_filter = ("category", "journey", "is_active", "is_featured")
     search_fields = ("title", "description", "slug")
     inlines = [ComboIngredientInline, ComboStepInline]
-    readonly_fields = ("id", "created_at", "updated_at")
+
+    # Preview en readonly
+    readonly_fields = ("image_preview_detail", "id", "created_at", "updated_at")
+
     autocomplete_fields = ("category", "journey")

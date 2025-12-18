@@ -6,7 +6,7 @@ from .base import TimeStampedUUIDModel
 class Category(TimeStampedUUIDModel):
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=120, unique=True)
-    image = models.URLField(blank=True, null=True)
+    image = models.ImageField(upload_to="categories/", blank=True, null=True)
 
     class Meta:
         constraints = [

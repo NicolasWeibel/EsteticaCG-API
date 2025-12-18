@@ -62,8 +62,15 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 
 # Permitir cookies en entornos cruzados (Localhost <-> Cloud Run)
-SESSION_COOKIE_SAMESITE = "None"
-CSRF_COOKIE_SAMESITE = "None"
+# En HTTP local Chrome bloquea "SameSite=None" sin "Secure", por eso usamos "Lax" en DEBUG.
+SESSION_COOKIE_SAMESITE = env(
+    "SESSION_COOKIE_SAMESITE",
+    default="Lax" if DEBUG else "None",
+)
+CSRF_COOKIE_SAMESITE = env(
+    "CSRF_COOKIE_SAMESITE",
+    default="Lax" if DEBUG else "None",
+)
 
 ROOT_URLCONF = "core.urls"
 
@@ -115,17 +122,29 @@ TIME_ZONE = env("TIME_ZONE", default="America/Argentina/Buenos_Aires")
 USE_I18N = True
 USE_TZ = True
 
-# ── ARCHIVOS ESTÁTICOS (CSS/JS - WhiteNoise) ──
+# ── ARCHIVOS ESTÁTICOS (CSS/JS) ──
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Activamos WhiteNoise solo en producción/staging
-if not DEBUG:
-    STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
-
-# ── ARCHIVOS MEDIA (Imágenes - Cloudinary) ──
+# ── ARCHIVOS MEDIA (Imágenes) ──
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# Configuración unificada de Almacenamiento (Django 4.2+)
+STORAGES = {
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+# Si estamos en Producción (DEBUG=False), usamos WhiteNoise para los estáticos
+if not DEBUG:
+    STORAGES["staticfiles"][
+        "BACKEND"
+    ] = "whitenoise.storage.CompressedStaticFilesStorage"
 
 CLOUDINARY_STORAGE = {
     "CLOUD_NAME": env("CLOUDINARY_CLOUD_NAME", default=""),
@@ -135,8 +154,6 @@ CLOUDINARY_STORAGE = {
     "PREFIX": env("CLOUDINARY_FOLDER", default="estetica-general"),
 }
 
-# Usamos Cloudinary SOLO para archivos subidos (Media), no para estáticos
-DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
 
 # ── DRF ──
 REST_FRAMEWORK = {
@@ -277,3 +294,32 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "WARNING",
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": True,
+        },
+    },
+}

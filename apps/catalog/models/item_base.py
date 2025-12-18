@@ -7,10 +7,10 @@ class ItemBase(TimeStampedUUIDModel):
     slug = models.SlugField(max_length=120, unique=True)
     title = models.CharField(max_length=200, unique=True)
     description = models.TextField(blank=True)
-    image = models.URLField(blank=True, null=True)
+    image = models.ImageField(upload_to="items/", blank=True, null=True)
     modal_title = models.CharField(max_length=200, blank=True)
     modal_description = models.TextField(blank=True)
-    modal_image = models.URLField(blank=True, null=True)
+    modal_image = models.ImageField(upload_to="items/modals/", blank=True, null=True)
 
     category = models.ForeignKey(
         Category, on_delete=models.PROTECT, related_name="%(class)ss"

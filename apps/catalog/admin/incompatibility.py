@@ -168,9 +168,7 @@ class TreatmentZoneIncompatibilityAdmin(admin.ModelAdmin):
                 # (que podrían ser parte de incompatibilidad futura)
                 qs = TreatmentZoneConfig.objects.filter(
                     body_position__in=["boca-arriba", "boca-abajo", "any"]
-                ).exclude(
-                    zone=models.F("zone")
-                )  # evita igual zona (a ajustar si hace falta)
+                )
 
             # Siempre excluímos el ya seleccionado para evitar auto-incompatibilidad
             if current_obj and db_field.name == "left_tzc" and current_obj.right_tzc_id:

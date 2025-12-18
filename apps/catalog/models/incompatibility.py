@@ -13,12 +13,12 @@ def positions_overlap(a: str, b: str) -> bool:
 
 class TreatmentZoneIncompatibility(TimeStampedUUIDModel):
     left_tzc = models.ForeignKey(
-        "catalog.TreatmentZoneConfig",  # ⬅️ referencia por string (app_label.ModelName)
+        "catalog.TreatmentZoneConfig",  # referencia por string (app_label.ModelName)
         on_delete=models.CASCADE,
         related_name="incompat_left",
     )
     right_tzc = models.ForeignKey(
-        "catalog.TreatmentZoneConfig",  # ⬅️ referencia por string
+        "catalog.TreatmentZoneConfig",  # referencia por string
         on_delete=models.CASCADE,
         related_name="incompat_right",
     )
@@ -56,7 +56,7 @@ class TreatmentZoneIncompatibility(TimeStampedUUIDModel):
             )
         if left.treatment.category_id != right.treatment.category_id:  # type: ignore[attr-defined]
             raise ValidationError(
-                "Ambas configuraciones deben pertenecer a la misma categoría."
+                "Ambas configuraciones deben pertenecer a la misma categoria."
             )
         if not positions_overlap(left.body_position, right.body_position):
             raise ValidationError(
@@ -74,4 +74,4 @@ class TreatmentZoneIncompatibility(TimeStampedUUIDModel):
         return super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.left_tzc} ↔ {self.right_tzc}"
+        return f"{self.left_tzc} <-> {self.right_tzc}"
