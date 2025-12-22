@@ -70,17 +70,3 @@ def cleanup_combo_image(sender, instance, **kwargs):
 def cleanup_journey_image(sender, instance, **kwargs):
     delete_cloudinary_file(instance.image)
     reorder_siblings(instance.journey.images.all())
-
-    # pares donde instance es right
-    right_qs = TreatmentZoneIncompatibility.objects.filter(
-        right_tzc=instance
-    ).select_related("left_tzc", "left_tzc__treatment", "left_tzc__zone")
-    for inc in right_qs:
-        a = instance
-        b = inc.left_tzc
-        if (
-            a.zone_id == b.zone_id
-            or a.treatment.category_id != b.treatment.category_id  # type: ignore[attr-defined]
-            or not positions_overlap(a.body_position, b.body_position)
-        ):
-            inc.delete()

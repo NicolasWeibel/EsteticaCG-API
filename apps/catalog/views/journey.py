@@ -5,15 +5,16 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from ..models import Journey
 from ..serializers import JourneySerializer, JourneyImageSerializer
 from ..permissions import IsAdminOrReadOnly
-from .mixins import GalleryOrderingMixin
+from .mixins import GalleryOrderingMixin, MultipartJsonMixin
 
 
-class JourneyViewSet(GalleryOrderingMixin, viewsets.ModelViewSet):
+class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewSet):
     queryset = Journey.objects.prefetch_related("images").order_by("title")
     serializer_class = JourneySerializer
     permission_classes = [IsAdminOrReadOnly]
     parser_classes = (MultiPartParser, FormParser, JSONParser)
     image_serializer_class = JourneyImageSerializer
+    multipart_json_fields = ["addons"]
     filterset_fields = ["category"]
 
     @action(detail=True, methods=["post"], url_path="reorder-images")

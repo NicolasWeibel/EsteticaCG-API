@@ -8,7 +8,7 @@ class Zone(TimeStampedUUIDModel):
     name = models.CharField(max_length=100, unique=True)
     category = models.ForeignKey(
         Category,
-        on_delete=models.PROTECT,  # evita borrar Cat si hay Zonas
+        on_delete=models.CASCADE,
         related_name="zones",
     )
 

@@ -54,7 +54,7 @@ class ComboIngredient(TimeStampedUUIDModel):
     )
     treatment_zone_config = models.ForeignKey(
         "TreatmentZoneConfig",
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name="combo_ingredients",
     )
 
@@ -110,8 +110,8 @@ class ComboStep(TimeStampedUUIDModel):
 
 class ComboStepItem(TimeStampedUUIDModel):
     step = models.ForeignKey(ComboStep, on_delete=models.CASCADE, related_name="items")
-    treatment = models.ForeignKey("Treatment", on_delete=models.PROTECT)
-    zone = models.ForeignKey("Zone", on_delete=models.PROTECT, null=True, blank=True)
+    treatment = models.ForeignKey("Treatment", on_delete=models.CASCADE)
+    zone = models.ForeignKey("Zone", on_delete=models.CASCADE, null=True, blank=True)
     duration = models.PositiveIntegerField()
     order_hint = models.CharField(
         max_length=20,

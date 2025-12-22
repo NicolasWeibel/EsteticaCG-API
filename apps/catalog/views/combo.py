@@ -5,15 +5,16 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from ..models import Combo
 from ..serializers import ComboSerializer, ComboImageSerializer
 from ..permissions import IsAdminOrReadOnly
-from .mixins import GalleryOrderingMixin
+from .mixins import GalleryOrderingMixin, MultipartJsonMixin
 
 
-class ComboViewSet(GalleryOrderingMixin, viewsets.ModelViewSet):
+class ComboViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewSet):
     queryset = Combo.objects.prefetch_related("images").order_by("-title")
     serializer_class = ComboSerializer
     permission_classes = [IsAdminOrReadOnly]
     parser_classes = (MultiPartParser, FormParser, JSONParser)
     image_serializer_class = ComboImageSerializer
+    multipart_json_fields = ["ingredients", "steps"]
     filterset_fields = [
         "category",
         "journey",

@@ -11,11 +11,11 @@ class ItemBase(TimeStampedUUIDModel):
     modal_description = models.TextField(blank=True)
 
     category = models.ForeignKey(
-        Category, on_delete=models.PROTECT, related_name="%(class)ss"
+        Category, on_delete=models.CASCADE, related_name="%(class)ss"
     )
     journey = models.ForeignKey(
         "catalog.Journey",
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         null=True,
         blank=True,
         related_name="%(class)ss",  # ✅ Journey.treatments / Journey.combos

@@ -24,7 +24,7 @@ class TreatmentZoneConfig(TimeStampedUUIDModel):
     treatment = models.ForeignKey(
         Treatment, on_delete=models.CASCADE, related_name="zone_configs"
     )
-    zone = models.ForeignKey("Zone", on_delete=models.PROTECT)
+    zone = models.ForeignKey("Zone", on_delete=models.CASCADE)
 
     # duración: un solo número (minutos)
     duration = models.PositiveIntegerField()
