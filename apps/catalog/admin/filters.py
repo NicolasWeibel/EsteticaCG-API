@@ -1,6 +1,6 @@
 # apps/catalog/admin/filters.py
 from django.contrib import admin
-from ..models import TreatmentType, Objective, IntensityLevel, DurationBucket
+from ..models import TreatmentType, Objective, IntensityLevel, DurationBucket, Tag
 from .mixins import CloudinaryImageAdminMixin
 
 
@@ -27,4 +27,10 @@ class IntensityLevelAdmin(admin.ModelAdmin):
 @admin.register(DurationBucket)
 class DurationBucketAdmin(admin.ModelAdmin):
     list_display = ("name", "minutes")
+    search_fields = ("name",)
+
+
+@admin.register(Tag)
+class TagAdmin(admin.ModelAdmin):
+    list_display = ("name",)
     search_fields = ("name",)

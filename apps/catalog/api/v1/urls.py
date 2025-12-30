@@ -18,6 +18,7 @@ from apps.catalog.views.filters import (
     ObjectiveViewSet,
     IntensityLevelViewSet,
     DurationBucketViewSet,
+    TagViewSet,
 )
 
 router = DefaultRouter()
@@ -37,6 +38,7 @@ router.register(r"filters/treatment-type", TreatmentTypeViewSet)
 router.register(r"filters/objectives", ObjectiveViewSet)
 router.register(r"filters/intensities", IntensityLevelViewSet)
 router.register(r"filters/duration", DurationBucketViewSet)
+router.register(r"filters/tags", TagViewSet)
 
 urlpatterns = router.urls + [
     path("catalog/", CatalogSummaryView.as_view(), name="catalog-summary"),

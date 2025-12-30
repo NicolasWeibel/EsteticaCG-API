@@ -1,10 +1,11 @@
 from rest_framework import viewsets
-from ..models import TreatmentType, Objective, IntensityLevel, DurationBucket
+from ..models import TreatmentType, Objective, IntensityLevel, DurationBucket, Tag
 from ..serializers import (
     TreatmentTypeSerializer,
     ObjectiveSerializer,
     IntensityLevelSerializer,
     DurationBucketSerializer,
+    TagSerializer,
 )
 from ..permissions import IsAdminOrReadOnly
 
@@ -31,3 +32,10 @@ class DurationBucketViewSet(viewsets.ModelViewSet):
     queryset = DurationBucket.objects.all()
     serializer_class = DurationBucketSerializer
     permission_classes = [IsAdminOrReadOnly]
+
+
+class TagViewSet(viewsets.ModelViewSet):
+    queryset = Tag.objects.all().order_by("name")
+    serializer_class = TagSerializer
+    permission_classes = [IsAdminOrReadOnly]
+    search_fields = ["name"]

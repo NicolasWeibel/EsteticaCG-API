@@ -25,6 +25,7 @@ from .filters import (
     ObjectiveSerializer,
     IntensityLevelSerializer,
     DurationBucketSerializer,
+    TagSerializer,
 )
 
 __all__ = [
@@ -50,4 +51,5 @@ __all__ = [
     "ObjectiveSerializer",
     "IntensityLevelSerializer",
     "DurationBucketSerializer",
+    "TagSerializer",
 ]

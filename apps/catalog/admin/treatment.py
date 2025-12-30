@@ -49,7 +49,7 @@ class TreatmentZoneConfigAdmin(admin.ModelAdmin):
 
 
 @admin.register(Treatment)
-class TreatmentAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):  # ?? Heredamos
+class TreatmentAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
     list_display = (
         "image_preview_list",  # ?? Agregamos foto
         "title",
@@ -82,4 +82,5 @@ class TreatmentAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):  # ?? Heredam
         "objectives",
         "intensities",
         "durations",
+        "tags",
     )

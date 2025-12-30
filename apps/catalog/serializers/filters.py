@@ -3,6 +3,7 @@ from ..models import (
     Objective,
     IntensityLevel,
     DurationBucket,
+    Tag,
 )
 from .base import UUIDSerializer
 
@@ -28,4 +29,10 @@ class IntensityLevelSerializer(UUIDSerializer):
 class DurationBucketSerializer(UUIDSerializer):
     class Meta:
         model = DurationBucket
+        fields = "__all__"
+
+
+class TagSerializer(UUIDSerializer):
+    class Meta:
+        model = Tag
         fields = "__all__"

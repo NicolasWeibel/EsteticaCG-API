@@ -13,6 +13,9 @@ class Journey(TimeStampedUUIDModel):
     slug = models.SlugField(max_length=100, unique=True)
     title = models.CharField(max_length=200, unique=True)
     description = models.TextField(blank=True)
+    short_description = models.CharField(max_length=255, blank=True)
+    seo_title = models.CharField(max_length=70, blank=True)
+    seo_description = models.CharField(max_length=160, blank=True)
     category = models.ForeignKey(
         Category, on_delete=models.CASCADE, related_name="journeys"
     )

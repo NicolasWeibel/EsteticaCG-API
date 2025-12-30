@@ -7,8 +7,9 @@ class ItemBase(TimeStampedUUIDModel):
     slug = models.SlugField(max_length=120, unique=True)
     title = models.CharField(max_length=200, unique=True)
     description = models.TextField(blank=True)
-    modal_title = models.CharField(max_length=200, blank=True)
-    modal_description = models.TextField(blank=True)
+    short_description = models.CharField(max_length=255, blank=True)
+    seo_title = models.CharField(max_length=70, blank=True)
+    seo_description = models.CharField(max_length=160, blank=True)
 
     category = models.ForeignKey(
         Category, on_delete=models.CASCADE, related_name="%(class)ss"
@@ -19,6 +20,11 @@ class ItemBase(TimeStampedUUIDModel):
         null=True,
         blank=True,
         related_name="%(class)ss",  # ✅ Journey.treatments / Journey.combos
+    )
+    tags = models.ManyToManyField(
+        "catalog.Tag",
+        related_name="%(class)ss",
+        blank=True,
     )
     # flags + orden editorial
     is_active = models.BooleanField(default=True)

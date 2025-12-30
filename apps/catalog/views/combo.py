@@ -9,7 +9,7 @@ from .mixins import GalleryOrderingMixin, MultipartJsonMixin
 
 
 class ComboViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewSet):
-    queryset = Combo.objects.prefetch_related("images").order_by("-title")
+    queryset = Combo.objects.prefetch_related("images", "tags").order_by("-title")
     serializer_class = ComboSerializer
     permission_classes = [IsAdminOrReadOnly]
     parser_classes = (MultiPartParser, FormParser, JSONParser)

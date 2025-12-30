@@ -8,7 +8,7 @@ from .mixins import GalleryOrderingMixin, MultipartJsonMixin
 
 
 class TreatmentViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewSet):
-    queryset = Treatment.objects.prefetch_related("images").order_by("-title")
+    queryset = Treatment.objects.prefetch_related("images", "tags").order_by("-title")
     serializer_class = TreatmentSerializer
     permission_classes = [IsAdminOrReadOnly]
     parser_classes = (MultiPartParser, FormParser, JSONParser)

@@ -1,5 +1,6 @@
 from .base import *
 from .category import *
+from .tag import *
 from .zone import *
 from .filters import *
 from .item_base import *

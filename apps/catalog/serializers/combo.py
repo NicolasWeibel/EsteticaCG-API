@@ -7,6 +7,7 @@ from ..models import Combo, ComboIngredient, ComboStep, ComboStepItem, ComboImag
 from ..utils.gallery import reorder_gallery
 from .base import UUIDSerializer
 from .gallery import ComboImageSerializer
+from .fields import TagListField
 
 
 class ComboIngredientSerializer(UUIDSerializer):
@@ -34,6 +35,7 @@ class ComboSerializer(UUIDSerializer):
     ingredients = ComboIngredientSerializer(many=True, required=False)
     steps = ComboStepSerializer(many=True, required=False, read_only=True)
     images = ComboImageSerializer(many=True, read_only=True)
+    tags = TagListField(required=False)
     cover_image = serializers.SerializerMethodField()
     uploaded_images = serializers.ListField(
         child=serializers.ImageField(allow_empty_file=False, use_url=False),
@@ -238,6 +240,7 @@ class ComboSerializer(UUIDSerializer):
         return None
 
     def create(self, validated_data):
+        tags = validated_data.pop("tags", None)
         ingredients = validated_data.pop("ingredients", [])
         uploaded_images = validated_data.pop("uploaded_images", [])
         images_order = validated_data.pop("images_order", None)
@@ -245,6 +248,8 @@ class ComboSerializer(UUIDSerializer):
         uploaded_list = self.context.get("uploaded_list", [])
         with transaction.atomic():
             combo = super().create(validated_data)
+            if tags is not None:
+                combo.tags.set(tags)
             if images_order is not None:
                 self._apply_mixed_order(combo, images_order, uploaded_map, uploaded_list)
             elif uploaded_images:
@@ -254,6 +259,7 @@ class ComboSerializer(UUIDSerializer):
             return combo
 
     def update(self, instance, validated_data):
+        tags = validated_data.pop("tags", None)
         ingredients = validated_data.pop("ingredients", None)
         uploaded_images = validated_data.pop("uploaded_images", [])
         removed_ids = validated_data.pop("removed_image_ids", [])
@@ -263,6 +269,8 @@ class ComboSerializer(UUIDSerializer):
         uploaded_list = self.context.get("uploaded_list", [])
         with transaction.atomic():
             combo = super().update(instance, validated_data)
+            if tags is not None:
+                combo.tags.set(tags)
             if removed_ids:
                 combo.images.filter(id__in=removed_ids).delete()
             if images_order is not None:

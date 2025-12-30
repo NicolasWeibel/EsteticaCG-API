@@ -65,4 +65,4 @@ class ComboAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
     # Preview en readonly
     readonly_fields = ("image_preview_detail", "id", "created_at", "updated_at")
 
-    autocomplete_fields = ("category", "journey")
+    autocomplete_fields = ("category", "journey", "tags")

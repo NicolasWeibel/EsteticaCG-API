@@ -7,12 +7,14 @@ from ..models import Treatment, TreatmentImage
 from ..utils.gallery import reorder_gallery
 from .gallery import TreatmentImageSerializer
 from .treatmentzoneconfig import TreatmentZoneConfigSerializer
+from .fields import TagListField
 from .base import UUIDSerializer
 
 
 class TreatmentSerializer(UUIDSerializer):
     zone_configs = TreatmentZoneConfigSerializer(many=True, required=False)
     images = TreatmentImageSerializer(many=True, read_only=True)
+    tags = TagListField(required=False)
     cover_image = serializers.SerializerMethodField()
     uploaded_images = serializers.ListField(
         child=serializers.ImageField(allow_empty_file=False, use_url=False),
@@ -297,6 +299,7 @@ class TreatmentSerializer(UUIDSerializer):
         ser.save(treatment=treatment)
 
     def create(self, validated_data):
+        tags = validated_data.pop("tags", None)
         zone_configs = validated_data.pop("zone_configs", [])
         uploaded_images = validated_data.pop("uploaded_images", [])
         images_order = validated_data.pop("images_order", None)
@@ -304,6 +307,8 @@ class TreatmentSerializer(UUIDSerializer):
         uploaded_list = self.context.get("uploaded_list", [])
         with transaction.atomic():
             treatment = super().create(validated_data)
+            if tags is not None:
+                treatment.tags.set(tags)
             if images_order is not None:
                 self._apply_mixed_order(treatment, images_order, uploaded_map, uploaded_list)
             elif uploaded_images:
@@ -313,6 +318,7 @@ class TreatmentSerializer(UUIDSerializer):
             return treatment
 
     def update(self, instance, validated_data):
+        tags = validated_data.pop("tags", None)
         zone_configs = validated_data.pop("zone_configs", None)
         uploaded_images = validated_data.pop("uploaded_images", [])
         removed_ids = validated_data.pop("removed_image_ids", [])
@@ -322,6 +328,8 @@ class TreatmentSerializer(UUIDSerializer):
         uploaded_list = self.context.get("uploaded_list", [])
         with transaction.atomic():
             treatment = super().update(instance, validated_data)
+            if tags is not None:
+                treatment.tags.set(tags)
             if removed_ids:
                 treatment.images.filter(id__in=removed_ids).delete()
             if images_order is not None:

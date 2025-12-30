@@ -11,4 +11,11 @@ class CategoryAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):  # 👈 Hereda
     readonly_fields = ("image_preview_detail",)  # Agregamos el detalle
 
     # Opcional: Para ver la foto al editar
-    fields = ("image_preview_detail", "image", "name", "slug")
+    fields = (
+        "image_preview_detail",
+        "image",
+        "name",
+        "slug",
+        "seo_title",
+        "seo_description",
+    )
