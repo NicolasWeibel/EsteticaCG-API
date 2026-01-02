@@ -4,6 +4,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
 from ..models import Treatment, TreatmentImage
+from ..services.pricing import effective_price_for_treatment
 from ..utils.gallery import reorder_gallery
 from .gallery import TreatmentImageSerializer
 from .treatmentzoneconfig import TreatmentZoneConfigSerializer
@@ -16,6 +17,8 @@ class TreatmentSerializer(UUIDSerializer):
     images = TreatmentImageSerializer(many=True, read_only=True)
     tags = TagListField(required=False)
     cover_image = serializers.SerializerMethodField()
+    effective_price = serializers.SerializerMethodField()
+    kind = serializers.SerializerMethodField()
     uploaded_images = serializers.ListField(
         child=serializers.ImageField(allow_empty_file=False, use_url=False),
         write_only=True,
@@ -117,6 +120,12 @@ class TreatmentSerializer(UUIDSerializer):
         if first_img:
             return first_img.image.url
         return None
+
+    def get_effective_price(self, obj):
+        return effective_price_for_treatment(obj)
+
+    def get_kind(self, obj):
+        return "treatment"
 
     def _create_images(self, treatment, images):
         start = treatment.images.count()

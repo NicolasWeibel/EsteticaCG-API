@@ -10,6 +10,15 @@ from .treatment import Treatment
 
 
 class Journey(TimeStampedUUIDModel):
+    class SortOption(models.TextChoices):
+        PRICE_ASC = "price_asc", "Price asc"
+        PRICE_DESC = "price_desc", "Price desc"
+        AZ = "az", "A-Z"
+        ZA = "za", "Z-A"
+        NEWEST = "newest", "Newest"
+        OLDEST = "oldest", "Oldest"
+        MANUAL = "manual", "Manual"
+
     slug = models.SlugField(max_length=100, unique=True)
     title = models.CharField(max_length=200, unique=True)
     description = models.TextField(blank=True)
@@ -18,6 +27,11 @@ class Journey(TimeStampedUUIDModel):
     seo_description = models.CharField(max_length=160, blank=True)
     category = models.ForeignKey(
         Category, on_delete=models.CASCADE, related_name="journeys"
+    )
+    default_sort = models.CharField(
+        max_length=20,
+        choices=SortOption.choices,
+        default=SortOption.PRICE_ASC,
     )
     addons = models.ManyToManyField(
         "catalog.Treatment",

@@ -10,6 +10,8 @@ from apps.catalog.views.gallery import (
     JourneyImageViewSet,
 )
 from apps.catalog.views.category import CategoryViewSet
+from apps.catalog.views.ordering import ItemOrderViewSet
+from apps.catalog.views.placement import PlacementViewSet, PlacementItemViewSet
 from apps.catalog.views.zone import ZoneViewSet
 from apps.catalog.views.treatmentzoneconfig import TreatmentZoneConfigViewSet
 from apps.catalog.views.incompatibility import TreatmentZoneIncompatibilityViewSet
@@ -29,6 +31,9 @@ router.register(r"combo-images", ComboImageViewSet)
 router.register(r"journeys", JourneyViewSet)
 router.register(r"journey-images", JourneyImageViewSet)
 router.register(r"categories", CategoryViewSet)
+router.register(r"orders", ItemOrderViewSet)
+router.register(r"placements", PlacementViewSet)
+router.register(r"placement-items", PlacementItemViewSet)
 router.register(r"zones", ZoneViewSet)
 router.register(r"zone-configs", TreatmentZoneConfigViewSet)
 router.register(r"incompatibilities", TreatmentZoneIncompatibilityViewSet)

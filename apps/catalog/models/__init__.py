@@ -9,3 +9,5 @@ from .journey import *
 from .treatment import *
 from .combo import *
 from .incompatibility import *
+from .ordering import *
+from .placement import *

@@ -4,6 +4,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
 from ..models import Combo, ComboIngredient, ComboStep, ComboStepItem, ComboImage
+from ..services.pricing import effective_price_for_combo
 from ..utils.gallery import reorder_gallery
 from .base import UUIDSerializer
 from .gallery import ComboImageSerializer
@@ -37,6 +38,8 @@ class ComboSerializer(UUIDSerializer):
     images = ComboImageSerializer(many=True, read_only=True)
     tags = TagListField(required=False)
     cover_image = serializers.SerializerMethodField()
+    effective_price = serializers.SerializerMethodField()
+    kind = serializers.SerializerMethodField()
     uploaded_images = serializers.ListField(
         child=serializers.ImageField(allow_empty_file=False, use_url=False),
         write_only=True,
@@ -238,6 +241,12 @@ class ComboSerializer(UUIDSerializer):
         if first_img:
             return first_img.image.url
         return None
+
+    def get_effective_price(self, obj):
+        return effective_price_for_combo(obj)
+
+    def get_kind(self, obj):
+        return "combo"
 
     def create(self, validated_data):
         tags = validated_data.pop("tags", None)

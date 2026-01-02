@@ -16,6 +16,9 @@ class CategoryAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):  # 👈 Hereda
         "image",
         "name",
         "slug",
+        "include_journeys",
+        "journey_position",
+        "default_sort",
         "seo_title",
         "seo_description",
     )

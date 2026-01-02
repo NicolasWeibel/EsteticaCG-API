@@ -3,6 +3,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
 from ..models import Journey, JourneyImage
+from ..services.pricing import effective_price_for_journey
 from ..utils.gallery import reorder_gallery
 from .base import UUIDSerializer
 from .gallery import JourneyImageSerializer
@@ -11,6 +12,8 @@ from .gallery import JourneyImageSerializer
 class JourneySerializer(UUIDSerializer):
     images = JourneyImageSerializer(many=True, read_only=True)
     cover_image = serializers.SerializerMethodField()
+    effective_price = serializers.SerializerMethodField()
+    kind = serializers.SerializerMethodField()
     uploaded_images = serializers.ListField(
         child=serializers.ImageField(allow_empty_file=False, use_url=False),
         write_only=True,
@@ -41,6 +44,12 @@ class JourneySerializer(UUIDSerializer):
         if first_img:
             return first_img.image.url
         return None
+
+    def get_effective_price(self, obj):
+        return effective_price_for_journey(obj)
+
+    def get_kind(self, obj):
+        return "journey"
 
     def _create_images(self, journey, images):
         start = journey.images.count()

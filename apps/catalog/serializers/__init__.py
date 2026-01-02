@@ -27,6 +27,8 @@ from .filters import (
     DurationBucketSerializer,
     TagSerializer,
 )
+from .ordering import ItemOrderSerializer
+from .placement import PlacementSerializer, PlacementItemSerializer
 
 __all__ = [
     # base
@@ -52,4 +54,7 @@ __all__ = [
     "IntensityLevelSerializer",
     "DurationBucketSerializer",
     "TagSerializer",
+    "ItemOrderSerializer",
+    "PlacementSerializer",
+    "PlacementItemSerializer",
 ]
