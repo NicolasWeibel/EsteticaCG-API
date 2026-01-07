@@ -8,7 +8,7 @@ from django.urls import reverse
 from django.shortcuts import redirect
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status, permissions
+from rest_framework import status, permissions, viewsets, filters
 from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -16,6 +16,7 @@ from .serializers import (
     UserMeSerializer,
     ClientMeSerializer,
     ClientProfileUpdateSerializer,
+    ClientAdminSerializer,
 )
 from apps.users.models import Client
 from apps.users.services import update_client_profile, ClientMatchError
@@ -206,6 +207,24 @@ class RequestDniClaimCodeView(APIView):
             {"detail": "Codigo enviado.", "sent_to": _mask_email(email)},
             status=status.HTTP_200_OK,
         )
+
+
+class ClientViewSet(viewsets.ModelViewSet):
+    queryset = Client.objects.select_related("user").all().order_by("-created_at")
+    serializer_class = ClientAdminSerializer
+    permission_classes = [permissions.IsAdminUser]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ("email", "dni", "first_name", "last_name", "phone_number")
+    ordering_fields = (
+        "created_at",
+        "updated_at",
+        "last_booking_date",
+        "bookings_count",
+        "email",
+        "dni",
+        "first_name",
+        "last_name",
+    )
 
 
 def google_login_start(request):

@@ -2,6 +2,7 @@
 # apps/users/api/v1/urls.py
 # ===========================================
 from django.urls import path
+from rest_framework.routers import SimpleRouter
 from .views import (
     SessionToJWTView,
     LogoutView,
@@ -11,9 +12,12 @@ from .views import (
     RequestDniClaimCodeView,
     GoogleLoginStartView,
     GoogleLoginCompleteView,
+    ClientViewSet,
 )
 
 app_name = "users_api_v1"
+router = SimpleRouter()
+router.register(r"clients", ClientViewSet, basename="client")
 urlpatterns = [
     path("session-to-jwt/", SessionToJWTView.as_view(), name="session-to-jwt"),
     path("logout/", LogoutView.as_view(), name="logout"),
@@ -32,3 +36,4 @@ urlpatterns = [
     path("google/login/", GoogleLoginStartView.as_view(), name="google-start"),
     path("google/callback/", GoogleLoginCompleteView.as_view(), name="google-complete"),
 ]
+urlpatterns += router.urls
