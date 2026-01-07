@@ -28,6 +28,10 @@ urlpatterns = [
         "api/v1/auth/",
         include(("apps.users.api.v1.urls", "users_api_v1"), namespace="users_api_v1"),
     ),  # Google→JWT + me/logout
+    path(
+        "api/v1/",
+        include(("apps.scheduling.api.v1.urls", "scheduling"), namespace="scheduling"),
+    ),
     # JWT helpers
     path("api/v1/auth/jwt/refresh/", TokenRefreshView.as_view(), name="jwt-refresh"),
     path("api/v1/auth/jwt/verify/", TokenVerifyView.as_view(), name="jwt-verify"),
