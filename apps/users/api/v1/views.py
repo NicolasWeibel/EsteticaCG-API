@@ -12,7 +12,15 @@ from rest_framework import status, permissions
 from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import UserMeSerializer
+from .serializers import (
+    UserMeSerializer,
+    ClientMeSerializer,
+    ClientProfileUpdateSerializer,
+)
+from apps.users.models import Client
+from apps.users.services import update_client_profile, ClientMatchError
+from apps.authcodes.models import OTPLoginCode
+from apps.authcodes.tasks import send_verification_code_task
 
 
 def _is_allowed_next(next_url: str) -> bool:
@@ -28,6 +36,23 @@ def _safe_next(next_url: str | None) -> str:
     if next_url and _is_allowed_next(next_url):
         return next_url
     return settings.FRONTEND_LOGIN_REDIRECT_URL
+
+
+def _mask_email(email: str) -> str:
+    if "@" not in email:
+        return "***"
+    name, domain = email.split("@", 1)
+    if not name:
+        name_mask = "***"
+    elif len(name) == 1:
+        name_mask = f"{name[:1]}***"
+    else:
+        name_mask = f"{name[:1]}***{name[-1:]}"
+    if "." in domain:
+        dom, rest = domain.split(".", 1)
+        dom_mask = f"{dom[:1]}***" if dom else "***"
+        return f"{name_mask}@{dom_mask}.{rest}"
+    return f"{name_mask}@***"
 
 
 class GoogleLoginStartView(APIView):
@@ -120,6 +145,67 @@ class MeView(APIView):
         ser.is_valid(raise_exception=True)
         ser.save()
         return Response(ser.data)
+
+
+class ProfileView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request):
+        ser = ClientProfileUpdateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            client = update_client_profile(user=request.user, data=ser.validated_data)
+        except ClientMatchError as exc:
+            return Response({"detail": exc.message}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(ClientMeSerializer(client).data)
+
+
+class RequestDniChangeCodeView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        email = request.user.email.lower().strip()
+        obj, raw_code = OTPLoginCode.create_fresh(
+            email=email,
+            ip=request.META.get("REMOTE_ADDR"),
+            purpose=OTPLoginCode.Purpose.DNI_CHANGE,
+        )
+        send_verification_code_task.delay(email, raw_code)
+        return Response(
+            {"detail": "Codigo enviado.", "sent_to": _mask_email(email)},
+            status=status.HTTP_200_OK,
+        )
+
+
+class RequestDniClaimCodeView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        dni = (request.data.get("dni") or "").strip()
+        if not dni:
+            return Response({"detail": "Falta 'dni'."}, status=status.HTTP_400_BAD_REQUEST)
+        client = Client.objects.filter(dni=dni).first()
+        if not client:
+            return Response({"detail": "DNI no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+        if client.user_id:
+            return Response(
+                {"detail": "Este DNI ya esta asociado a otra cuenta."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        email = client.email.lower().strip()
+        obj, raw_code = OTPLoginCode.create_fresh(
+            email=email,
+            ip=request.META.get("REMOTE_ADDR"),
+            purpose=OTPLoginCode.Purpose.DNI_CLAIM,
+        )
+        send_verification_code_task.delay(email, raw_code)
+        return Response(
+            {"detail": "Codigo enviado.", "sent_to": _mask_email(email)},
+            status=status.HTTP_200_OK,
+        )
 
 
 def google_login_start(request):

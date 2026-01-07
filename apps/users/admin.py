@@ -1,21 +1,19 @@
 # apps/users/admin.py
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from django.db.models import Q
-from .models import User
+from .models import User, Client
 
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     ordering = ("email",)
     # list_display base (sin is_superuser); se agrega dinámicamente para superuser
-    list_display = ("email", "full_name", "is_staff", "is_active")
-    search_fields = ("email", "full_name")
+    list_display = ("email", "is_staff", "is_active")
+    search_fields = ("email",)
 
     # ---- fieldsets base (se escogen dinámicamente) ----
     _FIELDSETS_SUPER = (
         (None, {"fields": ("email", "password")}),
-        ("Personal", {"fields": ("full_name",)}),
         (
             "Permisos",
             {
@@ -32,7 +30,6 @@ class UserAdmin(BaseUserAdmin):
     )
     _FIELDSETS_STAFF = (
         (None, {"fields": ("email", "password")}),
-        ("Personal", {"fields": ("full_name",)}),
         (
             "Permisos",
             {"fields": ("is_active", "is_staff")},
@@ -81,7 +78,7 @@ class UserAdmin(BaseUserAdmin):
     # ---------- columnas dinámicas ----------
     def get_list_display(self, request):
         if request.user.is_superuser:
-            return ("email", "full_name", "is_staff", "is_superuser", "is_active")
+            return ("email", "is_staff", "is_superuser", "is_active")
         return super().get_list_display(request)
 
     # ---------- fieldsets dinámicos ----------
@@ -155,3 +152,20 @@ class UserAdmin(BaseUserAdmin):
                 obj.is_staff = False
                 obj.is_superuser = False
         super().save_model(request, obj, form, change)
+
+
+@admin.register(Client)
+class ClientAdmin(admin.ModelAdmin):
+    list_display = (
+        "email",
+        "dni",
+        "first_name",
+        "last_name",
+        "gender",
+        "phone_number",
+        "bookings_count",
+        "last_booking_date",
+    )
+    list_filter = ("gender",)
+    search_fields = ("email", "dni", "first_name", "last_name", "phone_number")
+    ordering = ("-created_at",)

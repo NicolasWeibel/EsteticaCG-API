@@ -33,7 +33,6 @@ class UserManager(BaseUserManager):
 
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
-    full_name = models.CharField(max_length=255, blank=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
@@ -45,3 +44,34 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+
+class Client(models.Model):
+    class Gender(models.TextChoices):
+        FEMALE = "female", "Femenino"
+        MALE = "male", "Masculino"
+        OTHER = "other", "Otro"
+
+    user = models.OneToOneField(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="client"
+    )
+    email = models.EmailField(db_index=True)
+    dni = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    first_name = models.CharField(max_length=150, blank=True)
+    last_name = models.CharField(max_length=150, blank=True)
+    gender = models.CharField(
+        max_length=16, choices=Gender.choices, null=True, blank=True
+    )
+    phone_number = models.CharField(max_length=50, blank=True)
+    avatar_url = models.URLField(blank=True)
+    birth_date = models.DateField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_booking_date = models.DateTimeField(null=True, blank=True)
+    bookings_count = models.PositiveIntegerField(default=0)
+    notes = models.TextField(blank=True)
+
+    def __str__(self):
+        label = " ".join(part for part in [self.first_name, self.last_name] if part)
+        return label or self.email

@@ -13,16 +13,30 @@ def _hash_code(code: str, salt: str) -> str:
 
 
 class OTPLoginCode(models.Model):
+    class Purpose(models.TextChoices):
+        LOGIN = "login", "Login"
+        DNI_CHANGE = "dni_change", "DNI change"
+        DNI_CLAIM = "dni_claim", "DNI claim"
+
     email = models.EmailField(db_index=True)
     code_hash = models.CharField(max_length=64, db_index=True)
     salt = models.CharField(max_length=32)
+    purpose = models.CharField(
+        max_length=20, choices=Purpose.choices, default=Purpose.LOGIN, db_index=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     is_used = models.BooleanField(default=False)
     ip = models.GenericIPAddressField(null=True, blank=True)
 
     @classmethod
-    def create_fresh(cls, email: str, ip: str | None = None, ttl_minutes: int = 10):
+    def create_fresh(
+        cls,
+        email: str,
+        ip: str | None = None,
+        ttl_minutes: int = 10,
+        purpose: str = Purpose.LOGIN,
+    ):
         from random import randint
 
         raw_code = f"{randint(0, 999_999):06d}"
@@ -32,6 +46,7 @@ class OTPLoginCode(models.Model):
             email=email,
             code_hash=code_hash,
             salt=salt,
+            purpose=purpose,
             expires_at=timezone.now() + timedelta(minutes=ttl_minutes),
             ip=ip,
         )
@@ -44,6 +59,27 @@ class OTPLoginCode(models.Model):
             and (self.expires_at >= timezone.now())
             and hmac.compare_digest(self.code_hash, expected)
         )
+
+    @classmethod
+    def verify_latest(cls, *, email: str, raw_code: str, purpose: str):
+        qs = (
+            cls.objects.select_for_update()
+            .filter(
+                email=email,
+                purpose=purpose,
+                is_used=False,
+                expires_at__gte=timezone.now(),
+            )
+            .order_by("-created_at")
+        )
+        if not qs.exists():
+            return None
+        code = qs.first()
+        if not code.verify(raw_code):
+            return None
+        code.is_used = True
+        code.save(update_fields=["is_used"])
+        return code
 
     def __str__(self):
         return f"{self.email} • used={self.is_used}"
