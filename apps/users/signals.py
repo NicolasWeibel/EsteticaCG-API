@@ -23,7 +23,7 @@ def handle_social_account_added(request, sociallogin, **kwargs):
         email=sociallogin.user.email,
         first_name=first_name,
         last_name=last_name,
-        avatar_url=avatar_url,
+        google_avatar_url=avatar_url,
     )
 
 
@@ -37,5 +37,5 @@ def handle_social_account_updated(request, sociallogin, **kwargs):
         email=sociallogin.user.email,
         first_name=first_name,
         last_name=last_name,
-        avatar_url=avatar_url,
+        google_avatar_url=avatar_url,
     )

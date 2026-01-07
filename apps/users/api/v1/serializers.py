@@ -4,6 +4,8 @@ from apps.users.models import User, Client
 
 
 class ClientMeSerializer(serializers.ModelSerializer):
+    avatar_url = serializers.SerializerMethodField()
+
     class Meta:
         model = Client
         fields = (
@@ -14,6 +16,8 @@ class ClientMeSerializer(serializers.ModelSerializer):
             "last_name",
             "gender",
             "phone_number",
+            "google_avatar_url",
+            "custom_avatar",
             "avatar_url",
             "birth_date",
             "created_at",
@@ -22,6 +26,11 @@ class ClientMeSerializer(serializers.ModelSerializer):
             "bookings_count",
         )
         read_only_fields = fields
+
+    def get_avatar_url(self, obj):
+        if obj.custom_avatar:
+            return obj.custom_avatar.url
+        return obj.google_avatar_url or ""
 
 
 class ClientProfileUpdateSerializer(serializers.Serializer):
@@ -32,6 +41,7 @@ class ClientProfileUpdateSerializer(serializers.Serializer):
         choices=Client.Gender.choices, required=False, allow_blank=True
     )
     phone_number = serializers.CharField(required=False, allow_blank=True)
+    custom_avatar = serializers.ImageField(required=False)
     birth_date = serializers.DateField(required=False, allow_null=True)
     dni_verification_code = serializers.CharField(
         required=False, allow_blank=True, write_only=True
@@ -43,6 +53,8 @@ class ClientAdminSerializer(serializers.ModelSerializer):
         source="user", queryset=User.objects.all(), required=False, allow_null=True
     )
     has_user = serializers.SerializerMethodField(read_only=True)
+
+    avatar_url = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Client
@@ -56,6 +68,8 @@ class ClientAdminSerializer(serializers.ModelSerializer):
             "last_name",
             "gender",
             "phone_number",
+            "google_avatar_url",
+            "custom_avatar",
             "avatar_url",
             "birth_date",
             "created_at",
@@ -68,6 +82,11 @@ class ClientAdminSerializer(serializers.ModelSerializer):
 
     def get_has_user(self, obj):
         return bool(obj.user_id)
+
+    def get_avatar_url(self, obj):
+        if obj.custom_avatar:
+            return obj.custom_avatar.url
+        return obj.google_avatar_url or ""
 
     def validate_email(self, value):
         return value.strip().lower()

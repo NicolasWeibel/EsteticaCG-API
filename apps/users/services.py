@@ -83,7 +83,9 @@ def _is_placeholder_client(client: Client) -> bool:
         return False
     if client.phone_number:
         return False
-    if client.avatar_url:
+    if client.google_avatar_url:
+        return False
+    if client.custom_avatar:
         return False
     if client.birth_date:
         return False
@@ -182,7 +184,7 @@ def ensure_client_for_user(
     email: str | None = None,
     first_name: str | None = None,
     last_name: str | None = None,
-    avatar_url: str | None = None,
+    google_avatar_url: str | None = None,
 ):
     client = Client.objects.select_for_update().filter(user=user).first()
     normalized_email = normalize_email(email or user.email)
@@ -193,7 +195,7 @@ def ensure_client_for_user(
             email=normalized_email,
             first_name=first_name,
             last_name=last_name,
-            avatar_url=avatar_url,
+            google_avatar_url=google_avatar_url,
         )
         return client
 
@@ -210,7 +212,7 @@ def ensure_client_for_user(
             email=normalized_email,
             first_name=first_name,
             last_name=last_name,
-            avatar_url=avatar_url,
+            google_avatar_url=google_avatar_url,
         )
         guest_client.save()
         return guest_client
@@ -220,7 +222,7 @@ def ensure_client_for_user(
         email=normalized_email,
         first_name=_clean_value(first_name) or "",
         last_name=_clean_value(last_name) or "",
-        avatar_url=_clean_value(avatar_url) or "",
+        google_avatar_url=_clean_value(google_avatar_url) or "",
     )
 
 

@@ -63,7 +63,10 @@ class Client(models.Model):
         max_length=16, choices=Gender.choices, null=True, blank=True
     )
     phone_number = models.CharField(max_length=50, blank=True)
-    avatar_url = models.URLField(blank=True)
+    google_avatar_url = models.URLField(blank=True)
+    custom_avatar = models.ImageField(
+        upload_to="clients/avatars/", blank=True, null=True
+    )
     birth_date = models.DateField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
