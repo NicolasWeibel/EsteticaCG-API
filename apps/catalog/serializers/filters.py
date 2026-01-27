@@ -2,7 +2,6 @@ from ..models import (
     TreatmentType,
     Objective,
     IntensityLevel,
-    DurationBucket,
     Tag,
 )
 from .base import UUIDSerializer
@@ -23,12 +22,6 @@ class ObjectiveSerializer(UUIDSerializer):
 class IntensityLevelSerializer(UUIDSerializer):
     class Meta:
         model = IntensityLevel
-        fields = "__all__"
-
-
-class DurationBucketSerializer(UUIDSerializer):
-    class Meta:
-        model = DurationBucket
         fields = "__all__"
 
 

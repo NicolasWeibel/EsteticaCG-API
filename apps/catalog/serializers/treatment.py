@@ -1,12 +1,25 @@
 import json
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Avg
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
-from ..models import Treatment, TreatmentImage
+from ..models import (
+    Treatment,
+    TreatmentImage,
+    ItemBenefit,
+    ItemRecommendedPoint,
+    ItemFAQ,
+)
 from ..services.pricing import effective_price_for_treatment
 from ..utils.gallery import reorder_gallery
 from .gallery import TreatmentImageSerializer
+from .item_content import (
+    ItemBenefitSerializer,
+    ItemRecommendedPointSerializer,
+    ItemFAQSerializer,
+)
 from .treatmentzoneconfig import TreatmentZoneConfigSerializer
 from .fields import TagListField
 from .base import UUIDSerializer
@@ -15,10 +28,14 @@ from .base import UUIDSerializer
 class TreatmentSerializer(UUIDSerializer):
     zone_configs = TreatmentZoneConfigSerializer(many=True, required=False)
     images = TreatmentImageSerializer(many=True, read_only=True)
+    benefits = ItemBenefitSerializer(many=True, required=False)
+    recommended_points = ItemRecommendedPointSerializer(many=True, required=False)
+    faqs = ItemFAQSerializer(many=True, required=False)
     tags = TagListField(required=False)
     cover_image = serializers.SerializerMethodField()
     effective_price = serializers.SerializerMethodField()
     kind = serializers.SerializerMethodField()
+    duration = serializers.SerializerMethodField()
     uploaded_images = serializers.ListField(
         child=serializers.ImageField(allow_empty_file=False, use_url=False),
         write_only=True,
@@ -36,6 +53,21 @@ class TreatmentSerializer(UUIDSerializer):
     )
     images_order = serializers.ListField(
         child=serializers.DictField(),
+        write_only=True,
+        required=False,
+    )
+    benefits_remove_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=False,
+    )
+    recommended_points_remove_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=False,
+    )
+    faqs_remove_ids = serializers.ListField(
+        child=serializers.UUIDField(),
         write_only=True,
         required=False,
     )
@@ -62,6 +94,113 @@ class TreatmentSerializer(UUIDSerializer):
                 raise ValidationError({"zone_configs": f"JSON inválido: {exc}"})
         return raw
 
+    def _parse_json_list(self, raw, field_name):
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            try:
+                return json.loads(raw)
+            except Exception as exc:
+                raise ValidationError({field_name: f"JSON inválido: {exc}"})
+        if hasattr(raw, "read"):
+            try:
+                content = raw.read()
+                if hasattr(raw, "seek"):
+                    raw.seek(0)
+                return json.loads(content)
+            except Exception as exc:
+                raise ValidationError({field_name: f"JSON inválido: {exc}"})
+        return raw
+
+    def _normalize_ordered_list(self, items, field_name):
+        if items is None:
+            return None
+        if not isinstance(items, (list, tuple)):
+            raise ValidationError({field_name: "Debe ser una lista"})
+        normalized = []
+        for index, item in enumerate(items):
+            if not isinstance(item, dict):
+                raise ValidationError({field_name: "Cada elemento debe ser un objeto"})
+            if item.get("order") is None:
+                item = {**item, "order": index}
+            normalized.append(item)
+        return normalized
+
+    def _parse_id_list(self, raw, field_name):
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            try:
+                return json.loads(raw)
+            except Exception as exc:
+                raise ValidationError({field_name: f"JSON inválido: {exc}"})
+        return raw
+
+    def _apply_generic_changes(
+        self,
+        instance,
+        model_cls,
+        items,
+        remove_ids,
+        field_name,
+        update_fields,
+    ):
+        content_type = ContentType.objects.get_for_model(
+            instance, for_concrete_model=False
+        )
+        base_qs = model_cls.objects.filter(
+            content_type=content_type, object_id=instance.id
+        )
+        if remove_ids:
+            base_qs.filter(id__in=remove_ids).delete()
+
+        if items is None:
+            return
+
+        normalized = self._normalize_ordered_list(items, field_name)
+        if not normalized:
+            return
+
+        existing = list(base_qs)
+        existing_map = {str(obj.id): obj for obj in existing}
+        max_order = max([obj.order for obj in existing], default=-1)
+        to_create = []
+        to_update = []
+
+        for item in normalized:
+            if not isinstance(item, dict):
+                raise ValidationError({field_name: "Cada elemento debe ser un objeto"})
+            item_id = item.get("id")
+            payload = dict(item)
+            payload.pop("id", None)
+            if item_id:
+                obj = existing_map.get(str(item_id))
+                if not obj:
+                    raise ValidationError(
+                        {field_name: f"El id {item_id} no pertenece a este item"}
+                    )
+                if payload.get("order") is None:
+                    payload.pop("order", None)
+                for key, value in payload.items():
+                    setattr(obj, key, value)
+                to_update.append(obj)
+            else:
+                if payload.get("order") is None:
+                    max_order += 1
+                    payload["order"] = max_order
+                to_create.append(
+                    model_cls(
+                        content_type=content_type,
+                        object_id=instance.id,
+                        **payload,
+                    )
+                )
+
+        if to_create:
+            model_cls.objects.bulk_create(to_create)
+        if to_update:
+            model_cls.objects.bulk_update(to_update, update_fields)
+
     def _clean_uploaded_images(self, raw):
         """
         Acepta solo archivos; si llegan strings/URLs los ignora para evitar
@@ -82,6 +221,29 @@ class TreatmentSerializer(UUIDSerializer):
         if "zone_configs" in mutable:
             mutable["zone_configs"] = self._parse_zone_configs(
                 mutable.get("zone_configs")
+            )
+        if "benefits" in mutable:
+            mutable["benefits"] = self._parse_json_list(
+                mutable.get("benefits"), "benefits"
+            )
+        if "recommended_points" in mutable:
+            mutable["recommended_points"] = self._parse_json_list(
+                mutable.get("recommended_points"), "recommended_points"
+            )
+        if "faqs" in mutable:
+            mutable["faqs"] = self._parse_json_list(mutable.get("faqs"), "faqs")
+        if "benefits_remove_ids" in mutable:
+            mutable["benefits_remove_ids"] = self._parse_id_list(
+                mutable.get("benefits_remove_ids"), "benefits_remove_ids"
+            )
+        if "recommended_points_remove_ids" in mutable:
+            mutable["recommended_points_remove_ids"] = self._parse_id_list(
+                mutable.get("recommended_points_remove_ids"),
+                "recommended_points_remove_ids",
+            )
+        if "faqs_remove_ids" in mutable:
+            mutable["faqs_remove_ids"] = self._parse_id_list(
+                mutable.get("faqs_remove_ids"), "faqs_remove_ids"
             )
         if "uploaded_images" in mutable:
             cleaned = self._clean_uploaded_images(mutable.get("uploaded_images"))
@@ -126,6 +288,16 @@ class TreatmentSerializer(UUIDSerializer):
 
     def get_kind(self, obj):
         return "treatment"
+
+    def get_duration(self, obj):
+        avg_duration = getattr(obj, "avg_duration", None)
+        if avg_duration is None:
+            avg_duration = obj.zone_configs.aggregate(
+                avg=Avg("duration")
+            ).get("avg")
+        if avg_duration is None:
+            return None
+        return int(round(avg_duration))
 
     def _create_images(self, treatment, images):
         start = treatment.images.count()
@@ -224,6 +396,29 @@ class TreatmentSerializer(UUIDSerializer):
             mutable["zone_configs"] = self._parse_zone_configs(
                 mutable.get("zone_configs")
             )
+        if "benefits" in mutable:
+            mutable["benefits"] = self._parse_json_list(
+                mutable.get("benefits"), "benefits"
+            )
+        if "recommended_points" in mutable:
+            mutable["recommended_points"] = self._parse_json_list(
+                mutable.get("recommended_points"), "recommended_points"
+            )
+        if "faqs" in mutable:
+            mutable["faqs"] = self._parse_json_list(mutable.get("faqs"), "faqs")
+        if "benefits_remove_ids" in mutable:
+            mutable["benefits_remove_ids"] = self._parse_id_list(
+                mutable.get("benefits_remove_ids"), "benefits_remove_ids"
+            )
+        if "recommended_points_remove_ids" in mutable:
+            mutable["recommended_points_remove_ids"] = self._parse_id_list(
+                mutable.get("recommended_points_remove_ids"),
+                "recommended_points_remove_ids",
+            )
+        if "faqs_remove_ids" in mutable:
+            mutable["faqs_remove_ids"] = self._parse_id_list(
+                mutable.get("faqs_remove_ids"), "faqs_remove_ids"
+            )
         if "uploaded_images" in mutable:
             cleaned = self._clean_uploaded_images(mutable.get("uploaded_images"))
             if cleaned is None:
@@ -309,6 +504,9 @@ class TreatmentSerializer(UUIDSerializer):
 
     def create(self, validated_data):
         tags = validated_data.pop("tags", None)
+        benefits = validated_data.pop("benefits", [])
+        recommended_points = validated_data.pop("recommended_points", [])
+        faqs = validated_data.pop("faqs", [])
         zone_configs = validated_data.pop("zone_configs", [])
         uploaded_images = validated_data.pop("uploaded_images", [])
         images_order = validated_data.pop("images_order", None)
@@ -318,6 +516,30 @@ class TreatmentSerializer(UUIDSerializer):
             treatment = super().create(validated_data)
             if tags is not None:
                 treatment.tags.set(tags)
+            self._apply_generic_changes(
+                treatment,
+                ItemBenefit,
+                benefits,
+                [],
+                "benefits",
+                ["title", "detail", "order"],
+            )
+            self._apply_generic_changes(
+                treatment,
+                ItemRecommendedPoint,
+                recommended_points,
+                [],
+                "recommended_points",
+                ["title", "detail", "order"],
+            )
+            self._apply_generic_changes(
+                treatment,
+                ItemFAQ,
+                faqs,
+                [],
+                "faqs",
+                ["question", "answer", "order"],
+            )
             if images_order is not None:
                 self._apply_mixed_order(treatment, images_order, uploaded_map, uploaded_list)
             elif uploaded_images:
@@ -328,6 +550,14 @@ class TreatmentSerializer(UUIDSerializer):
 
     def update(self, instance, validated_data):
         tags = validated_data.pop("tags", None)
+        benefits = validated_data.pop("benefits", None)
+        recommended_points = validated_data.pop("recommended_points", None)
+        faqs = validated_data.pop("faqs", None)
+        benefits_remove_ids = validated_data.pop("benefits_remove_ids", None)
+        recommended_points_remove_ids = validated_data.pop(
+            "recommended_points_remove_ids", None
+        )
+        faqs_remove_ids = validated_data.pop("faqs_remove_ids", None)
         zone_configs = validated_data.pop("zone_configs", None)
         uploaded_images = validated_data.pop("uploaded_images", [])
         removed_ids = validated_data.pop("removed_image_ids", [])
@@ -339,6 +569,30 @@ class TreatmentSerializer(UUIDSerializer):
             treatment = super().update(instance, validated_data)
             if tags is not None:
                 treatment.tags.set(tags)
+            self._apply_generic_changes(
+                treatment,
+                ItemBenefit,
+                benefits,
+                benefits_remove_ids,
+                "benefits",
+                ["title", "detail", "order"],
+            )
+            self._apply_generic_changes(
+                treatment,
+                ItemRecommendedPoint,
+                recommended_points,
+                recommended_points_remove_ids,
+                "recommended_points",
+                ["title", "detail", "order"],
+            )
+            self._apply_generic_changes(
+                treatment,
+                ItemFAQ,
+                faqs,
+                faqs_remove_ids,
+                "faqs",
+                ["question", "answer", "order"],
+            )
             if removed_ids:
                 treatment.images.filter(id__in=removed_ids).delete()
             if images_order is not None:

@@ -14,6 +14,11 @@ from .gallery import (
     ComboImageSerializer,
     JourneyImageSerializer,
 )
+from .item_content import (
+    ItemBenefitSerializer,
+    ItemRecommendedPointSerializer,
+    ItemFAQSerializer,
+)
 from .combo import (
     ComboIngredientSerializer,
     ComboStepItemSerializer,
@@ -24,7 +29,6 @@ from .filters import (
     TreatmentTypeSerializer,
     ObjectiveSerializer,
     IntensityLevelSerializer,
-    DurationBucketSerializer,
     TagSerializer,
 )
 from .ordering import ItemOrderSerializer
@@ -42,6 +46,9 @@ __all__ = [
     "JourneySerializer",
     "JourneyImageSerializer",
     "TreatmentZoneIncompatibilitySerializer",
+    "ItemBenefitSerializer",
+    "ItemRecommendedPointSerializer",
+    "ItemFAQSerializer",
     # combo
     "ComboIngredientSerializer",
     "ComboStepItemSerializer",
@@ -52,7 +59,6 @@ __all__ = [
     "TreatmentTypeSerializer",
     "ObjectiveSerializer",
     "IntensityLevelSerializer",
-    "DurationBucketSerializer",
     "TagSerializer",
     "ItemOrderSerializer",
     "PlacementSerializer",

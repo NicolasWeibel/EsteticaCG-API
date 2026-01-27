@@ -1,8 +1,16 @@
 # apps/catalog/admin/treatment.py
 from django.contrib import admin
+from django.contrib.contenttypes.admin import GenericTabularInline
 from django.utils.html import format_html
 
-from ..models import Treatment, TreatmentZoneConfig, TreatmentImage
+from ..models import (
+    Treatment,
+    TreatmentZoneConfig,
+    TreatmentImage,
+    ItemBenefit,
+    ItemRecommendedPoint,
+    ItemFAQ,
+)
 from .incompatibility import IncompatibilityInline, IncompatibilityInlineReverse
 from .mixins import CloudinaryImageAdminMixin  # ?? Importamos
 
@@ -29,6 +37,27 @@ class TreatmentImageInline(admin.TabularInline):
                 obj.image.url,
             )
         return ""
+
+
+class ItemBenefitInline(GenericTabularInline):
+    model = ItemBenefit
+    extra = 1
+    fields = ("title", "detail", "order")
+    ordering = ("order",)
+
+
+class ItemRecommendedPointInline(GenericTabularInline):
+    model = ItemRecommendedPoint
+    extra = 1
+    fields = ("title", "detail", "order")
+    ordering = ("order",)
+
+
+class ItemFAQInline(GenericTabularInline):
+    model = ItemFAQ
+    extra = 1
+    fields = ("question", "answer", "order")
+    ordering = ("order",)
 
 
 @admin.register(TreatmentZoneConfig)
@@ -70,7 +99,13 @@ class TreatmentAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
         "is_featured",
     )
     search_fields = ("title", "description", "slug")
-    inlines = [TreatmentImageInline, TreatmentZoneConfigInline]
+    inlines = [
+        TreatmentImageInline,
+        ItemBenefitInline,
+        ItemRecommendedPointInline,
+        ItemFAQInline,
+        TreatmentZoneConfigInline,
+    ]
 
     # Agregamos el preview a readonly
     readonly_fields = ("image_preview_detail", "id", "created_at", "updated_at")
@@ -81,6 +116,5 @@ class TreatmentAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
         "treatment_types",
         "objectives",
         "intensities",
-        "durations",
         "tags",
     )

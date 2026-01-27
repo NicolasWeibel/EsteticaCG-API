@@ -19,7 +19,6 @@ from apps.catalog.views.filters import (
     TreatmentTypeViewSet,
     ObjectiveViewSet,
     IntensityLevelViewSet,
-    DurationBucketViewSet,
     TagViewSet,
 )
 
@@ -42,7 +41,6 @@ router.register(r"incompatibilities", TreatmentZoneIncompatibilityViewSet)
 router.register(r"filters/treatment-type", TreatmentTypeViewSet)
 router.register(r"filters/objectives", ObjectiveViewSet)
 router.register(r"filters/intensities", IntensityLevelViewSet)
-router.register(r"filters/duration", DurationBucketViewSet)
 router.register(r"filters/tags", TagViewSet)
 
 urlpatterns = router.urls + [

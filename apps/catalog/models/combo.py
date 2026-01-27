@@ -15,6 +15,7 @@ class Combo(ItemBase):
         default=1, validators=[MinValueValidator(1)]
     )
     min_session_interval_days = models.PositiveSmallIntegerField(default=0)
+    duration = models.PositiveIntegerField(null=True, blank=True)
 
     # reglas declarativas opcionales (zonas seleccionables, máximos, etc.)
     rules = models.JSONField(default=dict, blank=True)
@@ -44,6 +45,13 @@ class Combo(ItemBase):
             models.CheckConstraint(
                 check=models.Q(min_session_interval_days__gte=0),
                 name="ck_combo_min_session_interval_days_gte_0",
+            ),
+            models.CheckConstraint(
+                check=(
+                    models.Q(duration__isnull=True)
+                    | models.Q(duration__gt=0)
+                ),
+                name="ck_combo_duration_gt_0_or_null",
             ),
         ]
 

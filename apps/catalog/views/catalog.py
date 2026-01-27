@@ -11,7 +11,6 @@ from apps.catalog.serializers import (
     TreatmentTypeSerializer,
     ObjectiveSerializer,
     IntensityLevelSerializer,
-    DurationBucketSerializer,
 )
 
 
@@ -66,15 +65,6 @@ class CatalogSummaryView(APIView):
                 "options": ObjectiveSerializer(Objective.objects.all(), many=True).data,
                 "filterType": "array",
                 "field": "objectiveIds",
-                "mode": "any",
-            },
-            "durations": {
-                "title": "Duración",
-                "options": DurationBucketSerializer(
-                    DurationBucket.objects.all(), many=True
-                ).data,
-                "filterType": "array",
-                "field": "durationBucketIds",
                 "mode": "any",
             },
             "intensities": {

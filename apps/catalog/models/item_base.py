@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.contenttypes.fields import GenericRelation
 from .base import TimeStampedUUIDModel
 from .category import Category
 
@@ -10,6 +11,7 @@ class ItemBase(TimeStampedUUIDModel):
     short_description = models.CharField(max_length=255, blank=True)
     seo_title = models.CharField(max_length=70, blank=True)
     seo_description = models.CharField(max_length=160, blank=True)
+    recommended_description = models.TextField(blank=True)
 
     category = models.ForeignKey(
         Category, on_delete=models.CASCADE, related_name="%(class)ss"
@@ -26,6 +28,11 @@ class ItemBase(TimeStampedUUIDModel):
         related_name="%(class)ss",
         blank=True,
     )
+    benefits = GenericRelation("catalog.ItemBenefit", related_query_name="item")
+    recommended_points = GenericRelation(
+        "catalog.ItemRecommendedPoint", related_query_name="item"
+    )
+    faqs = GenericRelation("catalog.ItemFAQ", related_query_name="item")
     # flags + orden editorial
     is_active = models.BooleanField(default=True)
     is_featured = models.BooleanField(default=False)

@@ -23,10 +23,3 @@ class IntensityLevel(TimeStampedUUIDModel):
     def __str__(self):
         return self.name
 
-
-class DurationBucket(TimeStampedUUIDModel):
-    name = models.CharField(max_length=50, unique=True)
-    minutes = models.PositiveIntegerField()
-
-    def __str__(self):
-        return f"{self.name} ({self.minutes} min)"

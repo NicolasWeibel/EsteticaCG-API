@@ -11,5 +11,4 @@ from apps.catalog.serializers import (
     TreatmentTypeSerializer,
     ObjectiveSerializer,
     IntensityLevelSerializer,
-    DurationBucketSerializer,
 )

@@ -1,8 +1,18 @@
 # apps/catalog/admin/combo.py
 from django.contrib import admin
+from django.contrib.contenttypes.admin import GenericTabularInline
 from django.utils.html import format_html
 
-from ..models import Combo, ComboIngredient, ComboStep, ComboStepItem, ComboImage
+from ..models import (
+    Combo,
+    ComboIngredient,
+    ComboStep,
+    ComboStepItem,
+    ComboImage,
+    ItemBenefit,
+    ItemRecommendedPoint,
+    ItemFAQ,
+)
 from .mixins import CloudinaryImageAdminMixin
 
 
@@ -41,6 +51,27 @@ class ComboImageInline(admin.TabularInline):
         return ""
 
 
+class ItemBenefitInline(GenericTabularInline):
+    model = ItemBenefit
+    extra = 1
+    fields = ("title", "detail", "order")
+    ordering = ("order",)
+
+
+class ItemRecommendedPointInline(GenericTabularInline):
+    model = ItemRecommendedPoint
+    extra = 1
+    fields = ("title", "detail", "order")
+    ordering = ("order",)
+
+
+class ItemFAQInline(GenericTabularInline):
+    model = ItemFAQ
+    extra = 1
+    fields = ("question", "answer", "order")
+    ordering = ("order",)
+
+
 @admin.register(Combo)
 class ComboAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
     list_display = (
@@ -52,6 +83,7 @@ class ComboAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
         "price",
         "promotional_price",
         "sessions",
+        "duration",
         "min_session_interval_days",
         "order",
         "is_active",
@@ -60,7 +92,14 @@ class ComboAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
     list_editable = ("order", "is_active", "is_featured")
     list_filter = ("category", "journey", "is_active", "is_featured")
     search_fields = ("title", "description", "slug")
-    inlines = [ComboImageInline, ComboIngredientInline, ComboStepInline]
+    inlines = [
+        ComboImageInline,
+        ItemBenefitInline,
+        ItemRecommendedPointInline,
+        ItemFAQInline,
+        ComboIngredientInline,
+        ComboStepInline,
+    ]
 
     # Preview en readonly
     readonly_fields = ("image_preview_detail", "id", "created_at", "updated_at")
