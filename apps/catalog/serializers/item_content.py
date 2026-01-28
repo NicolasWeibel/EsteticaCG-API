@@ -5,6 +5,8 @@ from .base import UUIDSerializer
 
 
 class ItemBenefitSerializer(UUIDSerializer):
+    id = serializers.UUIDField(required=False)
+
     class Meta:
         model = ItemBenefit
         fields = ["id", "title", "detail", "order"]
@@ -12,6 +14,8 @@ class ItemBenefitSerializer(UUIDSerializer):
 
 
 class ItemRecommendedPointSerializer(UUIDSerializer):
+    id = serializers.UUIDField(required=False)
+
     class Meta:
         model = ItemRecommendedPoint
         fields = ["id", "title", "detail", "order"]
@@ -19,6 +23,8 @@ class ItemRecommendedPointSerializer(UUIDSerializer):
 
 
 class ItemFAQSerializer(UUIDSerializer):
+    id = serializers.UUIDField(required=False)
+
     class Meta:
         model = ItemFAQ
         fields = ["id", "question", "answer", "order"]

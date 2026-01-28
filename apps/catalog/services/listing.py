@@ -1,7 +1,11 @@
 from typing import Iterable, List, Optional, Dict, Tuple
 
 from ..models import Treatment, Combo, Journey
-from ..serializers import TreatmentSerializer, ComboSerializer, JourneySerializer
+from ..serializers.listing import (
+    TreatmentListSerializer,
+    ComboListSerializer,
+    JourneyListSerializer,
+)
 from .pricing import effective_price_for_item
 
 
@@ -58,11 +62,11 @@ def serialize_items(items: Iterable, context=None) -> List[dict]:
     data = []
     for item in items:
         if isinstance(item, Treatment):
-            data.append(TreatmentSerializer(item, context=context).data)
+            data.append(TreatmentListSerializer(item, context=context).data)
         elif isinstance(item, Combo):
-            data.append(ComboSerializer(item, context=context).data)
+            data.append(ComboListSerializer(item, context=context).data)
         elif isinstance(item, Journey):
-            data.append(JourneySerializer(item, context=context).data)
+            data.append(JourneyListSerializer(item, context=context).data)
     return data
 
 

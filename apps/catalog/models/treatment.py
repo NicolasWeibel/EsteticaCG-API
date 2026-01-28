@@ -1,5 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models.signals import m2m_changed
+from django.dispatch import receiver
 from .item_base import ItemBase
 from .filters import TreatmentType, Objective, IntensityLevel
 from .base import TimeStampedUUIDModel
@@ -11,6 +13,19 @@ class Treatment(ItemBase):
     intensities = models.ManyToManyField(IntensityLevel, blank=True)
     # Un treatment por defecto requiere seleccionar zonas
     requires_zones = models.BooleanField(default=True)
+
+
+@receiver(m2m_changed, sender=Treatment.objectives.through)
+def validate_objectives(sender, instance, action, reverse, model, pk_set, **kwargs):
+    if action not in ("pre_add", "pre_set") or reverse:
+        return
+    if not pk_set:
+        return
+    qs = Objective.objects.filter(pk__in=pk_set)
+    if qs.filter(category__isnull=True).exists():
+        raise ValidationError("Los objetivos deben tener una categor\u00eda.")
+    if qs.exclude(category_id=instance.category_id).exists():
+        raise ValidationError("Los objetivos deben ser de la misma categor\u00eda.")
 
 
 class TreatmentZoneConfig(TimeStampedUUIDModel):

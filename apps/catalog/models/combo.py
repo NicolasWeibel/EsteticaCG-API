@@ -1,11 +1,17 @@
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models.signals import m2m_changed
+from django.dispatch import receiver
 from .item_base import ItemBase
+from .filters import TreatmentType, Objective, IntensityLevel
 from .base import TimeStampedUUIDModel
 
 
 class Combo(ItemBase):
+    treatment_types = models.ManyToManyField(TreatmentType, blank=True)
+    objectives = models.ManyToManyField(Objective, blank=True)
+    intensities = models.ManyToManyField(IntensityLevel, blank=True)
     # precios del combo en sí:
     price = models.DecimalField(max_digits=10, decimal_places=2)
     promotional_price = models.DecimalField(
@@ -54,6 +60,19 @@ class Combo(ItemBase):
                 name="ck_combo_duration_gt_0_or_null",
             ),
         ]
+
+
+@receiver(m2m_changed, sender=Combo.objectives.through)
+def validate_combo_objectives(sender, instance, action, reverse, model, pk_set, **kwargs):
+    if action not in ("pre_add", "pre_set") or reverse:
+        return
+    if not pk_set:
+        return
+    qs = Objective.objects.filter(pk__in=pk_set)
+    if qs.filter(category__isnull=True).exists():
+        raise ValidationError("Los objetivos deben tener una categor\u00eda.")
+    if qs.exclude(category_id=instance.category_id).exists():
+        raise ValidationError("Los objetivos deben ser de la misma categor\u00eda.")
 
 
 class ComboIngredient(TimeStampedUUIDModel):

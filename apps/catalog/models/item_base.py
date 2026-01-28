@@ -12,6 +12,16 @@ class ItemBase(TimeStampedUUIDModel):
     seo_title = models.CharField(max_length=70, blank=True)
     seo_description = models.CharField(max_length=160, blank=True)
     recommended_description = models.TextField(blank=True)
+    benefits_image = models.ImageField(
+        upload_to="catalog/items/benefits/",
+        blank=True,
+        null=True,
+    )
+    recommended_image = models.ImageField(
+        upload_to="catalog/items/recommended/",
+        blank=True,
+        null=True,
+    )
 
     category = models.ForeignKey(
         Category, on_delete=models.CASCADE, related_name="%(class)ss"

@@ -9,6 +9,7 @@ from ..serializers import JourneySerializer, JourneyImageSerializer
 from ..permissions import IsAdminOrReadOnly
 from .mixins import GalleryOrderingMixin, MultipartJsonMixin
 from ..services.listing import SORT_OPTIONS, sort_items, serialize_items
+from ..services.filters_summary import build_filters_summary
 
 
 class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewSet):
@@ -36,9 +37,21 @@ class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelVie
             sort_key = "price_asc"
 
         treatments = Treatment.objects.filter(journey=journey).prefetch_related(
-            "images", "zone_configs"
+            "images",
+            "zone_configs",
+            "treatment_types",
+            "objectives",
+            "intensities",
+            "tags",
         )
-        combos = Combo.objects.filter(journey=journey).prefetch_related("images")
+        combos = Combo.objects.filter(journey=journey).prefetch_related(
+            "images",
+            "ingredients__treatment_zone_config__zone",
+            "treatment_types",
+            "objectives",
+            "intensities",
+            "tags",
+        )
 
         orders = ItemOrder.objects.filter(
             context_kind=ItemOrder.ContextKind.JOURNEY, context_id=journey.id
@@ -50,6 +63,7 @@ class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelVie
         return Response(
             {
                 "items": serialize_items(items, context=self.get_serializer_context()),
+                "filters": build_filters_summary(journey=journey),
                 "sort": sort_key,
             }
         )

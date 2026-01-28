@@ -7,6 +7,7 @@ from ..models import Category, Treatment, Combo, Journey, ItemOrder
 from ..serializers import CategorySerializer
 from ..permissions import IsAdminOrReadOnly
 from ..services.listing import SORT_OPTIONS, sort_items, serialize_items
+from ..services.filters_summary import build_filters_summary
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -24,11 +25,36 @@ class CategoryViewSet(viewsets.ModelViewSet):
             sort_key = "price_asc"
 
         treatments = Treatment.objects.filter(category=category).prefetch_related(
-            "images", "zone_configs"
+            "images",
+            "zone_configs",
+            "treatment_types",
+            "objectives",
+            "intensities",
+            "tags",
         )
-        combos = Combo.objects.filter(category=category).prefetch_related("images")
+        combos = Combo.objects.filter(category=category).prefetch_related(
+            "images",
+            "ingredients__treatment_zone_config__zone",
+            "treatment_types",
+            "objectives",
+            "intensities",
+            "tags",
+        )
         journeys = Journey.objects.filter(category=category).prefetch_related(
-            "images", "treatments__zone_configs", "combos"
+            "images",
+            "treatments__zone_configs",
+            "treatments__images",
+            "treatments__treatment_types",
+            "treatments__objectives",
+            "treatments__intensities",
+            "treatments__tags",
+            "combos",
+            "combos__images",
+            "combos__ingredients__treatment_zone_config__zone",
+            "combos__treatment_types",
+            "combos__objectives",
+            "combos__intensities",
+            "combos__tags",
         )
 
         orders = ItemOrder.objects.filter(
@@ -50,6 +76,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
         return Response(
             {
                 "items": serialize_items(items, context=self.get_serializer_context()),
+                "filters": build_filters_summary(category=category),
                 "include_journeys": category.include_journeys,
                 "journey_position": category.journey_position,
                 "sort": sort_key,

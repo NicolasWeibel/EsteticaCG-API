@@ -154,7 +154,7 @@ class ComboSerializer(UUIDSerializer):
                 raise ValidationError({field_name: f"JSON inválido: {exc}"})
         return raw
 
-    def _normalize_ordered_list(self, items, field_name):
+    def _normalize_ordered_list(self, items, field_name, fill_missing_order):
         if items is None:
             return None
         if not isinstance(items, (list, tuple)):
@@ -163,7 +163,7 @@ class ComboSerializer(UUIDSerializer):
         for index, item in enumerate(items):
             if not isinstance(item, dict):
                 raise ValidationError({field_name: "Cada elemento debe ser un objeto"})
-            if item.get("order") is None:
+            if fill_missing_order and item.get("order") is None:
                 item = {**item, "order": index}
             normalized.append(item)
         return normalized
@@ -186,6 +186,7 @@ class ComboSerializer(UUIDSerializer):
         remove_ids,
         field_name,
         update_fields,
+        fill_missing_order,
     ):
         content_type = ContentType.objects.get_for_model(
             instance, for_concrete_model=False
@@ -199,7 +200,9 @@ class ComboSerializer(UUIDSerializer):
         if items is None:
             return
 
-        normalized = self._normalize_ordered_list(items, field_name)
+        normalized = self._normalize_ordered_list(
+            items, field_name, fill_missing_order
+        )
         if not normalized:
             return
 
@@ -242,6 +245,22 @@ class ComboSerializer(UUIDSerializer):
             model_cls.objects.bulk_create(to_create)
         if to_update:
             model_cls.objects.bulk_update(to_update, update_fields)
+        self._resequence_generic_items(instance, model_cls)
+
+    def _resequence_generic_items(self, instance, model_cls):
+        content_type = ContentType.objects.get_for_model(
+            instance, for_concrete_model=False
+        )
+        qs = model_cls.objects.filter(
+            content_type=content_type, object_id=instance.id
+        ).order_by("order", "created_at", "id")
+        to_update = []
+        for index, obj in enumerate(qs):
+            if obj.order != index:
+                obj.order = index
+                to_update.append(obj)
+        if to_update:
+            model_cls.objects.bulk_update(to_update, ["order"])
 
     def to_internal_value(self, data):
         mutable = data.copy()
@@ -432,6 +451,7 @@ class ComboSerializer(UUIDSerializer):
                 [],
                 "benefits",
                 ["title", "detail", "order"],
+                True,
             )
             self._apply_generic_changes(
                 combo,
@@ -440,6 +460,7 @@ class ComboSerializer(UUIDSerializer):
                 [],
                 "recommended_points",
                 ["title", "detail", "order"],
+                True,
             )
             self._apply_generic_changes(
                 combo,
@@ -448,6 +469,7 @@ class ComboSerializer(UUIDSerializer):
                 [],
                 "faqs",
                 ["question", "answer", "order"],
+                True,
             )
             if images_order is not None:
                 self._apply_mixed_order(combo, images_order, uploaded_map, uploaded_list)
@@ -485,6 +507,7 @@ class ComboSerializer(UUIDSerializer):
                 benefits_remove_ids,
                 "benefits",
                 ["title", "detail", "order"],
+                False,
             )
             self._apply_generic_changes(
                 combo,
@@ -493,6 +516,7 @@ class ComboSerializer(UUIDSerializer):
                 recommended_points_remove_ids,
                 "recommended_points",
                 ["title", "detail", "order"],
+                False,
             )
             self._apply_generic_changes(
                 combo,
@@ -501,6 +525,7 @@ class ComboSerializer(UUIDSerializer):
                 faqs_remove_ids,
                 "faqs",
                 ["question", "answer", "order"],
+                False,
             )
             if removed_ids:
                 combo.images.filter(id__in=removed_ids).delete()

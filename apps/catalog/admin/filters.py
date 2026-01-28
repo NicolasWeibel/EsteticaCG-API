@@ -13,9 +13,10 @@ class TreatmentTypeAdmin(admin.ModelAdmin):
 @admin.register(Objective)
 class ObjectiveAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
     # Cambiamos "image" (la URL cruda) por "image_preview_list"
-    list_display = ("image_preview_list", "name")
+    list_display = ("image_preview_list", "name", "category")
     search_fields = ("name",)
     readonly_fields = ("image_preview_detail",)  # Detalle visual
+    autocomplete_fields = ("category",)
 
 
 @admin.register(IntensityLevel)
