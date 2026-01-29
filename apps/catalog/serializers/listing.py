@@ -31,6 +31,7 @@ class ZoneItemSerializer(serializers.Serializer):
 class BaseListItemSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     kind = serializers.CharField()
+    slug = serializers.CharField()
     image = serializers.SerializerMethodField()
     title = serializers.CharField()
     short_description = serializers.CharField()

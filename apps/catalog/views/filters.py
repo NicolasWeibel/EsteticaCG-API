@@ -62,4 +62,4 @@ class FiltersSummaryView(APIView):
                 category = journey.category
 
         summary = build_filters_summary(category=category, journey=journey)
-        return Response(summary)
+        return Response({"filters": summary})

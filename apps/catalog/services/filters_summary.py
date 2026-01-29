@@ -18,6 +18,7 @@ from ..serializers import (
     ZoneSerializer,
     TreatmentTypeSerializer,
     IntensityLevelSerializer,
+    CategorySerializer,
 )
 
 
@@ -40,21 +41,14 @@ def build_filters_summary(
         category = journey.category
 
     if category is None:
-        return {
-            "objectives": [],
-            "zones": [],
-            "treatment_types": [],
-            "intensities": [],
-            "journeys": [],
-            "durations": {"min": None, "max": None},
-            "prices": {"min": None, "max": None},
-        }
+        return {}
 
     objectives_qs = Objective.objects.filter(category=category)
     zones_qs = Zone.objects.filter(category=category)
     treatment_types_qs = TreatmentType.objects.all()
     intensities_qs = IntensityLevel.objects.all()
     journeys_qs = Journey.objects.filter(category=category)
+    categories_qs = Category.objects.all()
 
     if journey:
         tzc_qs = TreatmentZoneConfig.objects.filter(treatment__journey=journey)
@@ -82,11 +76,66 @@ def build_filters_summary(
     duration_max = _max_value(tzc_aggs["max_duration"], combo_aggs["max_duration"])
 
     return {
-        "objectives": ObjectiveSerializer(objectives_qs, many=True).data,
-        "zones": ZoneSerializer(zones_qs, many=True).data,
-        "treatment_types": TreatmentTypeSerializer(treatment_types_qs, many=True).data,
-        "intensities": IntensityLevelSerializer(intensities_qs, many=True).data,
-        "journeys": list(journeys_qs.values("id", "title", "slug")),
-        "durations": {"min": duration_min, "max": duration_max},
-        "prices": {"min": price_min, "max": price_max},
+        "kinds": {
+            "title": "Clase de Tratamiento",
+            "filter_type": "scalar",
+            "field": "kind",
+            "options": [
+                {"id": "treatment", "name": "Tratamientos"},
+                {"id": "combo", "name": "Combos"},
+                {"id": "journey", "name": "Jornadas"},
+            ],
+        },
+        "categories": {
+            "title": "Categoría",
+            "filter_type": "scalar",
+            "field": "category_id",
+            "options": CategorySerializer(categories_qs, many=True).data,
+        },
+        "zones": {
+            "title": "Zona del Cuerpo",
+            "filter_type": "array",
+            "field": "zone_ids",
+            "mode": "any",
+            "options": ZoneSerializer(zones_qs, many=True).data,
+        },
+        "treatment_types": {
+            "title": "Tipo de Tratamiento",
+            "filter_type": "array",
+            "field": "treatment_type_ids",
+            "mode": "any",
+            "options": TreatmentTypeSerializer(treatment_types_qs, many=True).data,
+        },
+        "objectives": {
+            "title": "Objetivos",
+            "filter_type": "array",
+            "field": "objective_ids",
+            "mode": "any",
+            "options": ObjectiveSerializer(objectives_qs, many=True).data,
+        },
+        "intensities": {
+            "title": "Intensidad",
+            "filter_type": "array",
+            "field": "intensity_ids",
+            "mode": "any",
+            "options": IntensityLevelSerializer(intensities_qs, many=True).data,
+        },
+        "durations": {
+            "title": "Duración",
+            "filter_type": "range",
+            "field": "duration",
+            "options": {"min": duration_min, "max": duration_max},
+        },
+        "price_range": {
+            "title": "Rango de Precio",
+            "filter_type": "range",
+            "field": "current_price",
+            "options": {"min": price_min, "max": price_max},
+        },
+        "journey": {
+            "title": "Jornada",
+            "filter_type": "scalar",
+            "field": "journey_id",
+            "options": list(journeys_qs.values("id", "title", "slug")),
+        },
     }
