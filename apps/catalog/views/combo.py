@@ -1,6 +1,7 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.response import Response
 
 from ..models import Combo
 from ..serializers import ComboSerializer, ComboImageSerializer
@@ -40,3 +41,9 @@ class ComboViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewS
         ordered_ids = request.data.get("ordered_ids", [])
         combo = self.get_object()
         return self._reorder_images(combo, ordered_ids)
+
+    @action(detail=True, methods=["get"], url_path="images")
+    def images(self, request, pk=None):
+        combo = self.get_object()
+        images = combo.images.order_by("order")
+        return Response(self.image_serializer_class(images, many=True).data)

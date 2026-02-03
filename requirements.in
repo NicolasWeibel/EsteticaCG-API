@@ -19,3 +19,5 @@ whitenoise
 cloudinary
 django-cloudinary-storage
 Pillow
+bleach
+tinycss2

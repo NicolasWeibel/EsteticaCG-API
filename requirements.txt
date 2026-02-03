@@ -20,6 +20,10 @@ attrs==25.4.0
     #   referencing
 billiard==4.2.2
     # via celery
+bleach==6.1.0
+    # via -r requirements.in
+tinycss2==1.2.1
+    # via bleach
 celery[redis]==5.5.3
     # via -r requirements.in
 certifi==2025.10.5

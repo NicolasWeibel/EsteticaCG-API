@@ -2,6 +2,7 @@ from rest_framework import viewsets
 from django.db.models import Avg
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.response import Response
 from ..permissions import IsAdminOrReadOnly
 from ..models import Treatment
 from ..serializers import TreatmentSerializer, TreatmentImageSerializer
@@ -31,3 +32,9 @@ class TreatmentViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelV
         ordered_ids = request.data.get("ordered_ids", [])
         treatment = self.get_object()
         return self._reorder_images(treatment, ordered_ids)
+
+    @action(detail=True, methods=["get"], url_path="images")
+    def images(self, request, pk=None):
+        treatment = self.get_object()
+        images = treatment.images.order_by("order")
+        return Response(self.image_serializer_class(images, many=True).data)

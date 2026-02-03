@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.contenttypes.fields import GenericRelation
 from .base import TimeStampedUUIDModel
 from .category import Category
+from ..utils.html import sanitize_html
 
 
 class ItemBase(TimeStampedUUIDModel):
@@ -54,6 +55,10 @@ class ItemBase(TimeStampedUUIDModel):
             models.Index(fields=["category", "title"]),
             models.Index(fields=["slug"]),
         ]
+
+    def save(self, *args, **kwargs):
+        self.description = sanitize_html(self.description)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.title

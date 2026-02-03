@@ -7,6 +7,7 @@ from django.core.exceptions import ValidationError
 from .base import TimeStampedUUIDModel
 from .category import Category
 from .treatment import Treatment
+from ..utils.html import sanitize_html
 
 
 class Journey(TimeStampedUUIDModel):
@@ -50,6 +51,10 @@ class Journey(TimeStampedUUIDModel):
         same_journey = [a for a in self.addons.all() if a.journey_id == self.id]
         if same_journey:
             raise ValidationError("Los addons no pueden pertenecer a la misma jornada.")
+
+    def save(self, *args, **kwargs):
+        self.description = sanitize_html(self.description)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.title

@@ -33,6 +33,7 @@ class BaseListItemSerializer(serializers.Serializer):
     kind = serializers.CharField()
     slug = serializers.CharField()
     image = serializers.SerializerMethodField()
+    image_count = serializers.SerializerMethodField()
     title = serializers.CharField()
     short_description = serializers.CharField()
     description = serializers.CharField()
@@ -51,6 +52,12 @@ class BaseListItemSerializer(serializers.Serializer):
             if img:
                 return img.image.url
         return None
+
+    def get_image_count(self, obj):
+        images = getattr(obj, "images", None)
+        if images is None:
+            return 0
+        return images.count()
 
     def get_filters(self, obj):
         data = {
@@ -103,6 +110,16 @@ class TreatmentListSerializer(BaseListItemSerializer):
 
     def get_duration(self, obj):
         return average_duration_for_treatment(obj)
+
+    def get_zones(self, obj):
+        zones = []
+        seen = set()
+        for zone_config in obj.zone_configs.all():
+            zone = getattr(zone_config, "zone", None)
+            if zone and zone.id not in seen:
+                zones.append(zone)
+                seen.add(zone.id)
+        return ZoneItemSerializer(zones, many=True).data
 
 
 class ComboListSerializer(BaseListItemSerializer):

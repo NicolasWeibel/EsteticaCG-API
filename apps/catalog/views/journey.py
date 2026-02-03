@@ -27,6 +27,12 @@ class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelVie
         journey = self.get_object()
         return self._reorder_images(journey, ordered_ids)
 
+    @action(detail=True, methods=["get"], url_path="images")
+    def images(self, request, pk=None):
+        journey = self.get_object()
+        images = journey.images.order_by("order")
+        return Response(self.image_serializer_class(images, many=True).data)
+
     @action(detail=True, methods=["get"], url_path="items")
     def items(self, request, pk=None):
         journey = self.get_object()
