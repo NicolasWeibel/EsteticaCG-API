@@ -208,3 +208,24 @@ class JourneySerializer(UUIDSerializer):
         if ordered_ids:
             reorder_gallery(journey, ordered_ids)
         return journey
+
+
+class PublicJourneySerializer(JourneySerializer):
+    class Meta:
+        model = Journey
+        fields = [
+            "id",
+            "slug",
+            "title",
+            "description",
+            "short_description",
+            "seo_title",
+            "seo_description",
+            "category",
+            "default_sort",
+            "addons",
+            "images",
+            "cover_image",
+            "effective_price",
+            "kind",
+        ]

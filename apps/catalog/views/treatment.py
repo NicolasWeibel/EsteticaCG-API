@@ -1,11 +1,16 @@
 from rest_framework import viewsets
+from django.shortcuts import get_object_or_404
 from django.db.models import Avg
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from ..permissions import IsAdminOrReadOnly
 from ..models import Treatment
-from ..serializers import TreatmentSerializer, TreatmentImageSerializer
+from ..serializers import (
+    TreatmentSerializer,
+    PublicTreatmentSerializer,
+    TreatmentImageSerializer,
+)
 from .mixins import GalleryOrderingMixin, MultipartJsonMixin
 
 
@@ -27,6 +32,19 @@ class TreatmentViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelV
     filterset_fields = ["category", "journey"]
     search_fields = ["title", "description"]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = getattr(self.request, "user", None)
+        if not (user and user.is_staff):
+            qs = qs.filter(is_active=True)
+        return qs
+
+    def get_serializer_class(self):
+        user = getattr(self.request, "user", None)
+        if user and user.is_staff:
+            return TreatmentSerializer
+        return PublicTreatmentSerializer
+
     @action(detail=True, methods=["post"], url_path="reorder-images")
     def reorder_images(self, request, pk=None):
         ordered_ids = request.data.get("ordered_ids", [])
@@ -38,3 +56,8 @@ class TreatmentViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelV
         treatment = self.get_object()
         images = treatment.images.order_by("order")
         return Response(self.image_serializer_class(images, many=True).data)
+
+    @action(detail=False, methods=["get"], url_path=r"by-slug/(?P<slug>[^/.]+)")
+    def by_slug(self, request, slug=None):
+        treatment = get_object_or_404(self.get_queryset(), slug=slug)
+        return Response(self.get_serializer(treatment).data)

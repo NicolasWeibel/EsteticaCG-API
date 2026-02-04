@@ -6,6 +6,7 @@ from rest_framework.exceptions import ValidationError
 
 from ..models import (
     Combo,
+    Treatment,
     ComboIngredient,
     ComboStep,
     ComboStepItem,
@@ -97,6 +98,17 @@ class ComboSerializer(UUIDSerializer):
     class Meta:
         model = Combo
         fields = "__all__"
+
+    def validate(self, attrs):
+        if not self.instance or "slug" in attrs:
+            slug = attrs.get("slug")
+            if not slug and self.instance:
+                slug = self.instance.slug
+            if slug and Treatment.objects.filter(slug=slug).exists():
+                raise serializers.ValidationError(
+                    {"slug": "El slug ya está en uso por un tratamiento."}
+                )
+        return attrs
 
     def _save_ingredients(self, combo, ingredients):
         # Normaliza FK para aceptar UUID o objeto en el payload
@@ -540,3 +552,40 @@ class ComboSerializer(UUIDSerializer):
             if ordered_ids:
                 reorder_gallery(combo, ordered_ids)
             return combo
+
+
+class PublicComboSerializer(ComboSerializer):
+    class Meta:
+        model = Combo
+        fields = [
+            "id",
+            "slug",
+            "title",
+            "description",
+            "short_description",
+            "seo_title",
+            "seo_description",
+            "recommended_description",
+            "benefits_image",
+            "recommended_image",
+            "category",
+            "journey",
+            "tags",
+            "treatment_types",
+            "objectives",
+            "intensities",
+            "price",
+            "promotional_price",
+            "sessions",
+            "min_session_interval_days",
+            "duration",
+            "ingredients",
+            "steps",
+            "images",
+            "benefits",
+            "recommended_points",
+            "faqs",
+            "cover_image",
+            "effective_price",
+            "kind",
+        ]

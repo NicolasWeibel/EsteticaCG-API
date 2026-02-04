@@ -1,11 +1,12 @@
 from rest_framework import viewsets
+from django.shortcuts import get_object_or_404
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from ..models import Journey, Treatment, Combo, ItemOrder
-from ..serializers import JourneySerializer, JourneyImageSerializer
+from ..serializers import JourneySerializer, PublicJourneySerializer, JourneyImageSerializer
 from ..permissions import IsAdminOrReadOnly
 from .mixins import GalleryOrderingMixin, MultipartJsonMixin
 from ..services.listing import SORT_OPTIONS, sort_items, serialize_items
@@ -20,6 +21,12 @@ class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelVie
     image_serializer_class = JourneyImageSerializer
     multipart_json_fields = ["addons"]
     filterset_fields = ["category"]
+
+    def get_serializer_class(self):
+        user = getattr(self.request, "user", None)
+        if user and user.is_staff:
+            return JourneySerializer
+        return PublicJourneySerializer
 
     @action(detail=True, methods=["post"], url_path="reorder-images")
     def reorder_images(self, request, pk=None):
@@ -73,3 +80,8 @@ class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelVie
                 "sort": sort_key,
             }
         )
+
+    @action(detail=False, methods=["get"], url_path=r"by-slug/(?P<slug>[^/.]+)")
+    def by_slug(self, request, slug=None):
+        journey = get_object_or_404(self.get_queryset(), slug=slug)
+        return Response(self.get_serializer(journey).data)

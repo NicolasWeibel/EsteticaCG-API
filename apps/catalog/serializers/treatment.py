@@ -8,6 +8,7 @@ from rest_framework.exceptions import ValidationError
 from ..models import (
     Treatment,
     TreatmentImage,
+    Combo,
     ItemBenefit,
     ItemRecommendedPoint,
     ItemFAQ,
@@ -276,6 +277,14 @@ class TreatmentSerializer(UUIDSerializer):
         return super().to_internal_value(mutable)
 
     def validate(self, attrs):
+        if not self.instance or "slug" in attrs:
+            slug = attrs.get("slug")
+            if not slug and self.instance:
+                slug = self.instance.slug
+            if slug and Combo.objects.filter(slug=slug).exists():
+                raise serializers.ValidationError(
+                    {"slug": "El slug ya está en uso por un combo."}
+                )
         zone_configs = attrs.get("zone_configs")
         requires_zones = attrs.get(
             "requires_zones",
@@ -628,6 +637,39 @@ class TreatmentSerializer(UUIDSerializer):
                 treatment.zone_configs.all().delete()
                 if zone_configs:
                     self._save_zone_configs(treatment, zone_configs)
-            if ordered_ids:
-                reorder_gallery(treatment, ordered_ids)
-            return treatment
+        if ordered_ids:
+            reorder_gallery(treatment, ordered_ids)
+        return treatment
+
+
+class PublicTreatmentSerializer(TreatmentSerializer):
+    class Meta:
+        model = Treatment
+        fields = [
+            "id",
+            "slug",
+            "title",
+            "description",
+            "short_description",
+            "seo_title",
+            "seo_description",
+            "recommended_description",
+            "benefits_image",
+            "recommended_image",
+            "category",
+            "journey",
+            "tags",
+            "treatment_types",
+            "objectives",
+            "intensities",
+            "requires_zones",
+            "zone_configs",
+            "images",
+            "benefits",
+            "recommended_points",
+            "faqs",
+            "cover_image",
+            "effective_price",
+            "kind",
+            "duration",
+        ]

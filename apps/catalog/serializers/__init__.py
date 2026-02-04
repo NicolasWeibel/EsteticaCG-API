@@ -6,8 +6,8 @@ from .base import UUIDSerializer
 from .category import CategorySerializer
 from .zone import ZoneSerializer
 from .treatmentzoneconfig import TreatmentZoneConfigSerializer
-from .treatment import TreatmentSerializer
-from .journey import JourneySerializer
+from .treatment import TreatmentSerializer, PublicTreatmentSerializer
+from .journey import JourneySerializer, PublicJourneySerializer
 from .incompatibility import TreatmentZoneIncompatibilitySerializer
 from .gallery import (
     TreatmentImageSerializer,
@@ -24,6 +24,7 @@ from .combo import (
     ComboStepItemSerializer,
     ComboStepSerializer,
     ComboSerializer,
+    PublicComboSerializer,
 )
 from .filters import (
     TreatmentTypeSerializer,
@@ -42,8 +43,10 @@ __all__ = [
     "ZoneSerializer",
     "TreatmentZoneConfigSerializer",
     "TreatmentSerializer",
+    "PublicTreatmentSerializer",
     "TreatmentImageSerializer",
     "JourneySerializer",
+    "PublicJourneySerializer",
     "JourneyImageSerializer",
     "TreatmentZoneIncompatibilitySerializer",
     "ItemBenefitSerializer",
@@ -54,6 +57,7 @@ __all__ = [
     "ComboStepItemSerializer",
     "ComboStepSerializer",
     "ComboSerializer",
+    "PublicComboSerializer",
     "ComboImageSerializer",
     # filters
     "TreatmentTypeSerializer",
