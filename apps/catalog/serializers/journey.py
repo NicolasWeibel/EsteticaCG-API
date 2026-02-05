@@ -211,6 +211,8 @@ class JourneySerializer(UUIDSerializer):
 
 
 class PublicJourneySerializer(JourneySerializer):
+    category = serializers.SerializerMethodField()
+
     class Meta:
         model = Journey
         fields = [
@@ -229,3 +231,9 @@ class PublicJourneySerializer(JourneySerializer):
             "effective_price",
             "kind",
         ]
+
+    def get_category(self, obj):
+        category = getattr(obj, "category", None)
+        if not category:
+            return None
+        return {"id": category.id, "name": category.name, "slug": category.slug}

@@ -14,7 +14,11 @@ from ..services.filters_summary import build_filters_summary
 
 
 class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewSet):
-    queryset = Journey.objects.prefetch_related("images").order_by("title")
+    queryset = (
+        Journey.objects.select_related("category")
+        .prefetch_related("images")
+        .order_by("title")
+    )
     serializer_class = JourneySerializer
     permission_classes = [IsAdminOrReadOnly]
     parser_classes = (MultiPartParser, FormParser, JSONParser)

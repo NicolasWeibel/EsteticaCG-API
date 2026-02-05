@@ -11,17 +11,26 @@ from .mixins import GalleryOrderingMixin, MultipartJsonMixin
 
 
 class ComboViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewSet):
-    queryset = Combo.objects.prefetch_related(
-        "images",
-        "tags",
-        "benefits",
-        "recommended_points",
-        "faqs",
-        "session_items",
-        "session_items__ingredient",
-        "session_items__ingredient__treatment_zone_config",
-        "session_items__ingredient__treatment_zone_config__zone",
-    ).order_by("-title")
+    queryset = (
+        Combo.objects.select_related("category", "journey")
+        .prefetch_related(
+            "images",
+            "tags",
+            "benefits",
+            "recommended_points",
+            "faqs",
+            "ingredients",
+            "ingredients__treatment_zone_config",
+            "ingredients__treatment_zone_config__zone",
+            "ingredients__treatment_zone_config__treatment",
+            "session_items",
+            "session_items__ingredient",
+            "session_items__ingredient__treatment_zone_config",
+            "session_items__ingredient__treatment_zone_config__zone",
+            "session_items__ingredient__treatment_zone_config__treatment",
+        )
+        .order_by("-title")
+    )
     serializer_class = ComboSerializer
     permission_classes = [IsAdminOrReadOnly]
     parser_classes = (MultiPartParser, FormParser, JSONParser)

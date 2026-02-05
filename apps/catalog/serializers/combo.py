@@ -719,6 +719,11 @@ class ComboSerializer(UUIDSerializer):
 
 
 class PublicComboSerializer(ComboSerializer):
+    category = serializers.SerializerMethodField()
+    journey = serializers.SerializerMethodField()
+    ingredients = serializers.SerializerMethodField()
+    zones = serializers.SerializerMethodField()
+
     class Meta:
         model = Combo
         fields = [
@@ -744,6 +749,7 @@ class PublicComboSerializer(ComboSerializer):
             "min_session_interval_days",
             "duration",
             "ingredients",
+            "zones",
             "session_items",
             "images",
             "benefits",
@@ -753,3 +759,58 @@ class PublicComboSerializer(ComboSerializer):
             "effective_price",
             "kind",
         ]
+
+    def get_category(self, obj):
+        category = getattr(obj, "category", None)
+        if not category:
+            return None
+        return {"id": category.id, "name": category.name, "slug": category.slug}
+
+    def get_journey(self, obj):
+        journey = getattr(obj, "journey", None)
+        if not journey:
+            return None
+        return {"id": journey.id, "title": journey.title, "slug": journey.slug}
+
+    def get_ingredients(self, obj):
+        items = obj.session_items.all()
+        treatment_sessions = {}
+        treatment_names = {}
+        for item in items:
+            ingredient = getattr(item, "ingredient", None)
+            if not ingredient:
+                continue
+            tzc = getattr(ingredient, "treatment_zone_config", None)
+            if not tzc:
+                continue
+            treatment = getattr(tzc, "treatment", None)
+            if not treatment:
+                continue
+            tid = str(treatment.id)
+            treatment_names[tid] = treatment.title
+            treatment_sessions.setdefault(tid, set()).add(item.session_index)
+
+        summary = []
+        for tid, sessions in treatment_sessions.items():
+            summary.append(
+                {
+                    "treatment_id": tid,
+                    "treatment_name": treatment_names.get(tid),
+                    "session_count": len(sessions),
+                }
+            )
+        return summary
+
+    def get_zones(self, obj):
+        zones_map = {}
+        for ingredient in obj.ingredients.all():
+            tzc = getattr(ingredient, "treatment_zone_config", None)
+            if not tzc:
+                continue
+            zone = getattr(tzc, "zone", None)
+            if not zone:
+                continue
+            zid = str(zone.id)
+            if zid not in zones_map:
+                zones_map[zid] = {"id": zone.id, "name": zone.name}
+        return list(zones_map.values())

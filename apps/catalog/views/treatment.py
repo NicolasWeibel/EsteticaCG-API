@@ -15,15 +15,20 @@ from .mixins import GalleryOrderingMixin, MultipartJsonMixin
 
 
 class TreatmentViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewSet):
-    queryset = Treatment.objects.annotate(
-        avg_duration=Avg("zone_configs__duration")
-    ).prefetch_related(
-        "images",
-        "tags",
-        "benefits",
-        "recommended_points",
-        "faqs",
-    ).order_by("-title")
+    queryset = (
+        Treatment.objects.annotate(avg_duration=Avg("zone_configs__duration"))
+        .select_related("category", "journey")
+        .prefetch_related(
+            "images",
+            "tags",
+            "benefits",
+            "recommended_points",
+            "faqs",
+            "zone_configs",
+            "zone_configs__zone",
+        )
+        .order_by("-title")
+    )
     serializer_class = TreatmentSerializer
     permission_classes = [IsAdminOrReadOnly]
     parser_classes = (MultiPartParser, FormParser, JSONParser)

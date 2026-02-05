@@ -8,6 +8,7 @@ from rest_framework.exceptions import ValidationError
 from ..models import (
     Treatment,
     TreatmentImage,
+    TreatmentZoneConfig,
     Combo,
     ItemBenefit,
     ItemRecommendedPoint,
@@ -643,6 +644,10 @@ class TreatmentSerializer(UUIDSerializer):
 
 
 class PublicTreatmentSerializer(TreatmentSerializer):
+    category = serializers.SerializerMethodField()
+    journey = serializers.SerializerMethodField()
+    zone_configs = serializers.SerializerMethodField()
+
     class Meta:
         model = Treatment
         fields = [
@@ -673,3 +678,42 @@ class PublicTreatmentSerializer(TreatmentSerializer):
             "kind",
             "duration",
         ]
+
+    def get_category(self, obj):
+        category = getattr(obj, "category", None)
+        if not category:
+            return None
+        return {"id": category.id, "name": category.name, "slug": category.slug}
+
+    def get_journey(self, obj):
+        journey = getattr(obj, "journey", None)
+        if not journey:
+            return None
+        return {"id": journey.id, "title": journey.title, "slug": journey.slug}
+
+    def get_zone_configs(self, obj):
+        return PublicTreatmentZoneConfigSerializer(
+            obj.zone_configs.all(), many=True, context=self.context
+        ).data
+
+
+class PublicTreatmentZoneConfigSerializer(UUIDSerializer):
+    zone_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TreatmentZoneConfig
+        fields = [
+            "id",
+            "treatment",
+            "zone",
+            "zone_name",
+            "duration",
+            "price",
+            "promotional_price",
+        ]
+
+    def get_zone_name(self, obj):
+        zone = getattr(obj, "zone", None)
+        if not zone:
+            return None
+        return zone.name
