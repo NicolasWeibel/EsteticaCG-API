@@ -115,67 +115,25 @@ class ComboIngredient(TimeStampedUUIDModel):
                 )
 
 
-class ComboStep(TimeStampedUUIDModel):
-    class OrderHint(models.TextChoices):
-        START = "AL_PRINCIPIO", "Al principio"
-        ANY = "AL_MEDIO", "Indistinto"
-        END = "AL_FINAL", "Al final"
+class ComboSessionItem(TimeStampedUUIDModel):
+    combo = models.ForeignKey(
+        Combo, on_delete=models.CASCADE, related_name="session_items"
+    )
+    session_index = models.PositiveSmallIntegerField()
+    ingredient = models.ForeignKey(ComboIngredient, on_delete=models.CASCADE)
 
-    combo = models.ForeignKey(Combo, on_delete=models.CASCADE, related_name="steps")
-    order = models.PositiveIntegerField()  # orden de los grupos de trabajo
-
-    # semántica: algunos pares tratamiento-zona deben ir al principio/medio/final
-    # (los ítems adjuntos llevan el hint específico)
     class Meta:
         constraints = [
+            models.CheckConstraint(
+                check=models.Q(session_index__gte=1),
+                name="ck_combo_session_index_gte_1",
+            ),
             models.UniqueConstraint(
-                fields=["combo", "order"], name="uq_combo_step_order"
-            )
+                fields=["combo", "session_index", "ingredient"],
+                name="uq_combo_session_item_unique",
+            ),
         ]
-        ordering = ["order"]
-
-
-class ComboStepItem(TimeStampedUUIDModel):
-    step = models.ForeignKey(ComboStep, on_delete=models.CASCADE, related_name="items")
-    treatment = models.ForeignKey("Treatment", on_delete=models.CASCADE)
-    zone = models.ForeignKey("Zone", on_delete=models.CASCADE, null=True, blank=True)
-    duration = models.PositiveIntegerField()
-    order_hint = models.CharField(
-        max_length=20,
-        choices=ComboStep.OrderHint.choices,
-        default=ComboStep.OrderHint.ANY,
-    )
-
-    class Meta:
-        indexes = [models.Index(fields=["step"])]
-
-    def clean(self):
-        # coherencia con combo de la step
-        combo = self.step.combo
-
-        # 1. Validar Categoría (Existente)
-        if self.treatment.category_id != combo.category_id:
-            raise ValidationError(
-                "El tratamiento del paso debe ser de la misma categoría que el combo."
-            )
-        if self.zone and self.zone.category_id != combo.category_id:
-            raise ValidationError(
-                "La zona del paso debe ser de la misma categoría que el combo."
-            )
-        if self.duration <= 0:
-            raise ValidationError("La duración debe ser > 0.")
-
-        # 2. Validar Jornada (Nueva lógica)
-        combo_journey = combo.journey
-        treatment_journey = self.treatment.journey
-
-        # Solo validamos si ambos tienen jornada definida y son diferentes
-        if combo_journey and treatment_journey and treatment_journey != combo_journey:
-            # Verificamos si la jornada del combo permite este tratamiento como addon
-            is_addon = combo_journey.addons.filter(id=self.treatment.id).exists()
-
-            if not is_addon:
-                raise ValidationError(
-                    f"El tratamiento '{self.treatment.title}' pertenece a otra Jornada ('{treatment_journey}') "
-                    f"y no está habilitado como 'addon' en la Jornada del Combo ('{combo_journey}')."
-                )
+        indexes = [
+            models.Index(fields=["combo", "session_index"]),
+            models.Index(fields=["ingredient"]),
+        ]

@@ -6,8 +6,7 @@ from django.utils.html import format_html
 from ..models import (
     Combo,
     ComboIngredient,
-    ComboStep,
-    ComboStepItem,
+    ComboSessionItem,
     ComboImage,
     ItemBenefit,
     ItemRecommendedPoint,
@@ -22,17 +21,10 @@ class ComboIngredientInline(admin.TabularInline):
     autocomplete_fields = ("treatment_zone_config",)
 
 
-class ComboStepItemInline(admin.TabularInline):
-    model = ComboStepItem
+class ComboSessionItemInline(admin.TabularInline):
+    model = ComboSessionItem
     extra = 1
-    fields = ("treatment", "zone", "duration", "order_hint")
-    autocomplete_fields = ("treatment", "zone")
-
-
-class ComboStepInline(admin.StackedInline):
-    model = ComboStep
-    extra = 1
-    show_change_link = True
+    fields = ("session_index", "ingredient")
 
 
 class ComboImageInline(admin.TabularInline):
@@ -98,7 +90,7 @@ class ComboAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
         ItemRecommendedPointInline,
         ItemFAQInline,
         ComboIngredientInline,
-        ComboStepInline,
+        ComboSessionItemInline,
     ]
 
     # Preview en readonly

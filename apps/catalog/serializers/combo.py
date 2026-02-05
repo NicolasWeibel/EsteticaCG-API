@@ -8,8 +8,7 @@ from ..models import (
     Combo,
     Treatment,
     ComboIngredient,
-    ComboStep,
-    ComboStepItem,
+    ComboSessionItem,
     ComboImage,
     ItemBenefit,
     ItemRecommendedPoint,
@@ -34,23 +33,18 @@ class ComboIngredientSerializer(UUIDSerializer):
         extra_kwargs = {"combo": {"read_only": True}}
 
 
-class ComboStepItemSerializer(UUIDSerializer):
+class ComboSessionItemSerializer(UUIDSerializer):
     class Meta:
-        model = ComboStepItem
+        model = ComboSessionItem
         fields = "__all__"
-
-
-class ComboStepSerializer(UUIDSerializer):
-    items = ComboStepItemSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = ComboStep
-        fields = "__all__"
+        extra_kwargs = {
+            "combo": {"read_only": True},
+        }
 
 
 class ComboSerializer(UUIDSerializer):
     ingredients = ComboIngredientSerializer(many=True, required=False)
-    steps = ComboStepSerializer(many=True, required=False, read_only=True)
+    session_items = ComboSessionItemSerializer(many=True, required=False)
     images = ComboImageSerializer(many=True, read_only=True)
     benefits = ItemBenefitSerializer(many=True, required=False)
     recommended_points = ItemRecommendedPointSerializer(many=True, required=False)
@@ -129,6 +123,14 @@ class ComboSerializer(UUIDSerializer):
         ser.is_valid(raise_exception=True)
         ser.save(combo=combo)
 
+    def _save_session_items(self, combo, session_items):
+        normalized = self._normalize_session_items(combo, session_items)
+        ser = ComboSessionItemSerializer(
+            data=normalized, many=True, context=self.context
+        )
+        ser.is_valid(raise_exception=True)
+        ser.save(combo=combo)
+
     def _create_images(self, combo, images):
         start = combo.images.count()
         to_create = []
@@ -165,6 +167,133 @@ class ComboSerializer(UUIDSerializer):
             except Exception as exc:
                 raise ValidationError({field_name: f"JSON inválido: {exc}"})
         return raw
+
+    def _normalize_session_items(self, combo, items):
+        if items is None:
+            return None
+        if not isinstance(items, (list, tuple)):
+            raise ValidationError({"session_items": "Debe ser una lista"})
+
+        ingredient_map = {str(obj.id): obj for obj in combo.ingredients.all()}
+        tzc_map = {
+            str(obj.treatment_zone_config_id): obj
+            for obj in combo.ingredients.all()
+        }
+
+        normalized = []
+        for item in items:
+            if not isinstance(item, dict):
+                raise ValidationError(
+                    {"session_items": "Cada elemento debe ser un objeto"}
+                )
+            session_index = item.get("session_index")
+            ingredient_id = item.get("ingredient")
+            tzc_id = item.get("treatment_zone_config")
+
+            if session_index is None:
+                raise ValidationError(
+                    {"session_items": "session_index es requerido"}
+                )
+            if ingredient_id and tzc_id:
+                raise ValidationError(
+                    {
+                        "session_items": "Enviar 'ingredient' o 'treatment_zone_config', no ambos."
+                    }
+                )
+            if not ingredient_id and not tzc_id:
+                raise ValidationError(
+                    {
+                        "session_items": "Debe incluir 'ingredient' o 'treatment_zone_config'."
+                    }
+                )
+
+            try:
+                session_index = int(session_index)
+            except (TypeError, ValueError):
+                raise ValidationError(
+                    {"session_items": "session_index debe ser un número válido."}
+                )
+
+            ingredient = None
+            if ingredient_id:
+                ingredient = ingredient_map.get(str(ingredient_id))
+            if ingredient is None and tzc_id:
+                ingredient = tzc_map.get(str(tzc_id))
+            if not ingredient:
+                raise ValidationError(
+                    {"session_items": "El ingrediente no pertenece al combo."}
+                )
+
+            normalized.append(
+                {
+                    "session_index": session_index,
+                    "ingredient": ingredient.id,
+                }
+            )
+        return normalized
+
+    def _validate_session_items(self, combo, items):
+        if items is None:
+            raise ValidationError(
+                {"session_items": "session_items es requerido."}
+            )
+
+        total_sessions = combo.sessions or 0
+        if total_sessions <= 0:
+            raise ValidationError({"sessions": "sessions debe ser >= 1."})
+
+        session_counts = {i: 0 for i in range(1, total_sessions + 1)}
+        ingredient_ids = {str(obj.id) for obj in combo.ingredients.all()}
+        if not ingredient_ids:
+            raise ValidationError(
+                {"ingredients": "El combo debe tener al menos un ingrediente."}
+            )
+        used_ingredients = set()
+        seen_pairs = set()
+
+        for item in items:
+            session_index = item.get("session_index")
+            ingredient_id = str(item.get("ingredient"))
+
+            if session_index not in session_counts:
+                raise ValidationError(
+                    {
+                        "session_items": f"session_index inválido: {session_index}."
+                    }
+                )
+            if ingredient_id not in ingredient_ids:
+                raise ValidationError(
+                    {"session_items": "El ingrediente no pertenece al combo."}
+                )
+
+            pair_key = (session_index, ingredient_id)
+            if pair_key in seen_pairs:
+                raise ValidationError(
+                    {
+                        "session_items": "No se permiten ingredientes repetidos en la misma sesión."
+                    }
+                )
+            seen_pairs.add(pair_key)
+            session_counts[session_index] += 1
+            used_ingredients.add(ingredient_id)
+
+        empty_sessions = [idx for idx, count in session_counts.items() if count == 0]
+        if empty_sessions:
+            raise ValidationError(
+                {
+                    "session_items": f"Las sesiones sin ingredientes no están permitidas: {empty_sessions}."
+                }
+            )
+
+        missing_ingredients = sorted(
+            ingredient_ids.difference(used_ingredients)
+        )
+        if missing_ingredients:
+            raise ValidationError(
+                {
+                    "session_items": "Cada ingrediente debe estar en al menos una sesión."
+                }
+            )
 
     def _normalize_ordered_list(self, items, field_name, fill_missing_order):
         if items is None:
@@ -277,6 +406,10 @@ class ComboSerializer(UUIDSerializer):
     def to_internal_value(self, data):
         mutable = data.copy()
         images_order = mutable.get("images_order")
+        if "session_items" in mutable:
+            mutable["session_items"] = self._parse_json_list(
+                mutable.get("session_items"), "session_items"
+            )
         if "ingredients" in mutable:
             parsed_ing = self._parse_ingredients(mutable.get("ingredients"))
             if hasattr(mutable, "setlist") and isinstance(parsed_ing, list):
@@ -448,6 +581,7 @@ class ComboSerializer(UUIDSerializer):
         recommended_points = validated_data.pop("recommended_points", [])
         faqs = validated_data.pop("faqs", [])
         ingredients = validated_data.pop("ingredients", [])
+        session_items = validated_data.pop("session_items", None)
         uploaded_images = validated_data.pop("uploaded_images", [])
         images_order = validated_data.pop("images_order", None)
         uploaded_map = self.context.get("uploaded_map", {})
@@ -489,6 +623,17 @@ class ComboSerializer(UUIDSerializer):
                 self._create_images(combo, uploaded_images)
             if ingredients:
                 self._save_ingredients(combo, ingredients)
+            if session_items is None:
+                raise ValidationError(
+                    {"session_items": "session_items es requerido."}
+                )
+            normalized_session_items = self._normalize_session_items(
+                combo, session_items
+            )
+            self._validate_session_items(combo, normalized_session_items)
+            combo.session_items.all().delete()
+            if normalized_session_items:
+                self._save_session_items(combo, normalized_session_items)
             return combo
 
     def update(self, instance, validated_data):
@@ -502,6 +647,7 @@ class ComboSerializer(UUIDSerializer):
         )
         faqs_remove_ids = validated_data.pop("faqs_remove_ids", None)
         ingredients = validated_data.pop("ingredients", None)
+        session_items = validated_data.pop("session_items", None)
         uploaded_images = validated_data.pop("uploaded_images", [])
         removed_ids = validated_data.pop("removed_image_ids", [])
         ordered_ids = validated_data.pop("ordered_ids", [])
@@ -549,6 +695,24 @@ class ComboSerializer(UUIDSerializer):
                 instance.ingredients.all().delete()
                 if ingredients:
                     self._save_ingredients(instance, ingredients)
+            if session_items is not None:
+                normalized_session_items = self._normalize_session_items(
+                    instance, session_items
+                )
+                self._validate_session_items(instance, normalized_session_items)
+                instance.session_items.all().delete()
+                if normalized_session_items:
+                    self._save_session_items(instance, normalized_session_items)
+            else:
+                existing_items = [
+                    {"session_index": obj.session_index, "ingredient": obj.ingredient_id}
+                    for obj in instance.session_items.all()
+                ]
+                if not existing_items:
+                    raise ValidationError(
+                        {"session_items": "session_items es requerido."}
+                    )
+                self._validate_session_items(instance, existing_items)
             if ordered_ids:
                 reorder_gallery(combo, ordered_ids)
             return combo
@@ -580,7 +744,7 @@ class PublicComboSerializer(ComboSerializer):
             "min_session_interval_days",
             "duration",
             "ingredients",
-            "steps",
+            "session_items",
             "images",
             "benefits",
             "recommended_points",

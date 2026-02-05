@@ -17,6 +17,10 @@ class ComboViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewS
         "benefits",
         "recommended_points",
         "faqs",
+        "session_items",
+        "session_items__ingredient",
+        "session_items__ingredient__treatment_zone_config",
+        "session_items__ingredient__treatment_zone_config__zone",
     ).order_by("-title")
     serializer_class = ComboSerializer
     permission_classes = [IsAdminOrReadOnly]
@@ -24,7 +28,7 @@ class ComboViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewS
     image_serializer_class = ComboImageSerializer
     multipart_json_fields = [
         "ingredients",
-        "steps",
+        "session_items",
         "benefits",
         "recommended_points",
         "faqs",

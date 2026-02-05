@@ -21,8 +21,7 @@ from .item_content import (
 )
 from .combo import (
     ComboIngredientSerializer,
-    ComboStepItemSerializer,
-    ComboStepSerializer,
+    ComboSessionItemSerializer,
     ComboSerializer,
     PublicComboSerializer,
 )
@@ -54,8 +53,7 @@ __all__ = [
     "ItemFAQSerializer",
     # combo
     "ComboIngredientSerializer",
-    "ComboStepItemSerializer",
-    "ComboStepSerializer",
+    "ComboSessionItemSerializer",
     "ComboSerializer",
     "PublicComboSerializer",
     "ComboImageSerializer",
