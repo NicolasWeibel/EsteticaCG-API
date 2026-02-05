@@ -34,6 +34,8 @@ class ComboIngredientSerializer(UUIDSerializer):
 
 
 class ComboSessionItemSerializer(UUIDSerializer):
+    treatment_zone_config = serializers.UUIDField(write_only=True, required=False)
+
     class Meta:
         model = ComboSessionItem
         fields = "__all__"
@@ -181,10 +183,10 @@ class ComboSerializer(UUIDSerializer):
         }
 
         normalized = []
-        for item in items:
+        for idx, item in enumerate(items):
             if not isinstance(item, dict):
                 raise ValidationError(
-                    {"session_items": "Cada elemento debe ser un objeto"}
+                    {"session_items": "Cada item debe ser un objeto."}
                 )
             session_index = item.get("session_index")
             ingredient_id = item.get("ingredient")
@@ -192,18 +194,24 @@ class ComboSerializer(UUIDSerializer):
 
             if session_index is None:
                 raise ValidationError(
-                    {"session_items": "session_index es requerido"}
+                    {"session_items": "Cada item requiere session_index."}
                 )
             if ingredient_id and tzc_id:
                 raise ValidationError(
                     {
-                        "session_items": "Enviar 'ingredient' o 'treatment_zone_config', no ambos."
+                        "session_items": (
+                            "Cada item debe tener 'ingredient' o "
+                            "'treatment_zone_config', pero no ambos."
+                        )
                     }
                 )
             if not ingredient_id and not tzc_id:
                 raise ValidationError(
                     {
-                        "session_items": "Debe incluir 'ingredient' o 'treatment_zone_config'."
+                        "session_items": (
+                            "Cada item debe incluir 'ingredient' o "
+                            "'treatment_zone_config'."
+                        )
                     }
                 )
 
@@ -211,7 +219,11 @@ class ComboSerializer(UUIDSerializer):
                 session_index = int(session_index)
             except (TypeError, ValueError):
                 raise ValidationError(
-                    {"session_items": "session_index debe ser un número válido."}
+                    {
+                        "session_items": (
+                            "session_index debe ser un número válido."
+                        )
+                    }
                 )
 
             ingredient = None
@@ -221,7 +233,11 @@ class ComboSerializer(UUIDSerializer):
                 ingredient = tzc_map.get(str(tzc_id))
             if not ingredient:
                 raise ValidationError(
-                    {"session_items": "El ingrediente no pertenece al combo."}
+                    {
+                        "session_items": (
+                            "El ingrediente no pertenece al combo."
+                        )
+                    }
                 )
 
             normalized.append(

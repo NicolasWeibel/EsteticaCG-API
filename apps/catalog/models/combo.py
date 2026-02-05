@@ -114,6 +114,18 @@ class ComboIngredient(TimeStampedUUIDModel):
                     f"y no esta habilitado como 'addon' en la Jornada del Combo ('{combo_journey}')."
                 )
 
+    def __str__(self) -> str:
+        tzc = self.treatment_zone_config
+        try:
+            treatment = tzc.treatment.title
+            zone = tzc.zone.name
+            price = tzc.price
+            promo = tzc.promotional_price
+            price_str = f"{promo} ({price})" if promo else f"{price}"
+            return f"{treatment} / {zone} / {price_str}"
+        except Exception:
+            return f"ComboIngredient {self.pk}"
+
 
 class ComboSessionItem(TimeStampedUUIDModel):
     combo = models.ForeignKey(
