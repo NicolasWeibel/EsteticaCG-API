@@ -766,7 +766,6 @@ class PublicComboSerializer(ComboSerializer):
             "duration",
             "ingredients",
             "zones",
-            "session_items",
             "images",
             "benefits",
             "recommended_points",

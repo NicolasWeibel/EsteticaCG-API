@@ -6,8 +6,10 @@ from drf_spectacular.views import (
     SpectacularRedocView,
 )
 from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
+from .views import health_check
 
 urlpatterns = [
+    path("healthz/", health_check, name="health_check"),
     path("admin/", admin.site.urls),
     # Google (crea sesión)
     path("accounts/", include("allauth.urls")),
