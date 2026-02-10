@@ -1,22 +1,38 @@
 from rest_framework import serializers
 
-from ..models import TreatmentImage, ComboImage, JourneyImage
+from ..models import TreatmentMedia, ComboMedia, JourneyMedia
 from .base import UUIDSerializer
+from ..utils.media import build_media_url
 
 
-class TreatmentImageSerializer(UUIDSerializer):
+class TreatmentMediaSerializer(UUIDSerializer):
+    media = serializers.SerializerMethodField()
+
     class Meta:
-        model = TreatmentImage
-        fields = ["id", "image", "alt_text", "order"]
+        model = TreatmentMedia
+        fields = ["id", "media", "media_type", "alt_text", "order"]
+
+    def get_media(self, obj):
+        return build_media_url(obj.media, obj.media_type)
 
 
-class ComboImageSerializer(UUIDSerializer):
+class ComboMediaSerializer(UUIDSerializer):
+    media = serializers.SerializerMethodField()
+
     class Meta:
-        model = ComboImage
-        fields = ["id", "image", "alt_text", "order"]
+        model = ComboMedia
+        fields = ["id", "media", "media_type", "alt_text", "order"]
+
+    def get_media(self, obj):
+        return build_media_url(obj.media, obj.media_type)
 
 
-class JourneyImageSerializer(UUIDSerializer):
+class JourneyMediaSerializer(UUIDSerializer):
+    media = serializers.SerializerMethodField()
+
     class Meta:
-        model = JourneyImage
-        fields = ["id", "image", "alt_text", "order"]
+        model = JourneyMedia
+        fields = ["id", "media", "media_type", "alt_text", "order"]
+
+    def get_media(self, obj):
+        return build_media_url(obj.media, obj.media_type)

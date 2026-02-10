@@ -6,45 +6,45 @@ from rest_framework.exceptions import ValidationError
 
 def reorder_gallery(obj, ordered_ids: Iterable) -> List:
     """
-    Reordena la galería de `obj` (que debe exponer `.images`).
-    Incluye cualquier imagen no listada al final.
+    Reordena la galería de `obj` (que debe exponer `.media`).
+    Incluye cualquier media no listada al final.
     """
     if not isinstance(ordered_ids, list):
-        raise ValidationError("ordered_ids debe ser una lista")
+        raise ValidationError("ordered_media_ids debe ser una lista")
 
-    images_qs = getattr(obj, "images", None)
-    if images_qs is None:
+    media_qs = getattr(obj, "media", None)
+    if media_qs is None:
         raise ValidationError("El objeto no tiene galería asociada")
 
     ordered_set = set()
-    all_images = list(images_qs.order_by("order"))
-    images_map = {str(img.id): img for img in all_images}
-    ordered_images = []
+    all_media = list(media_qs.order_by("order"))
+    media_map = {str(item.id): item for item in all_media}
+    ordered_media = []
 
     try:
         with transaction.atomic():
             for img_id in ordered_ids:
-                img = images_map.get(str(img_id))
-                if img and str(img.id) not in ordered_set:
-                    ordered_images.append(img)
-                    ordered_set.add(str(img.id))
+                media_obj = media_map.get(str(img_id))
+                if media_obj and str(media_obj.id) not in ordered_set:
+                    ordered_media.append(media_obj)
+                    ordered_set.add(str(media_obj.id))
 
-            for img in all_images:
-                if str(img.id) not in ordered_set:
-                    ordered_images.append(img)
-                    ordered_set.add(str(img.id))
+            for media_obj in all_media:
+                if str(media_obj.id) not in ordered_set:
+                    ordered_media.append(media_obj)
+                    ordered_set.add(str(media_obj.id))
 
             to_update = []
-            for index, img in enumerate(ordered_images):
-                if img.order != index:
-                    img.order = index
-                    to_update.append(img)
+            for index, media_obj in enumerate(ordered_media):
+                if media_obj.order != index:
+                    media_obj.order = index
+                    to_update.append(media_obj)
 
             if to_update:
-                images_qs.model.objects.bulk_update(to_update, ["order"])
+                media_qs.model.objects.bulk_update(to_update, ["order"])
     except ValidationError:
         raise
     except Exception as exc:
         raise ValidationError(str(exc))
 
-    return ordered_images
+    return ordered_media

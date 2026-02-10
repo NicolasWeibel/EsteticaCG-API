@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from ..models import Treatment, Combo, Journey
+from ..utils.media import build_media_url
 from ..services.pricing import (
     price_pair_for_treatment,
     price_pair_for_combo,
@@ -32,8 +33,8 @@ class BaseListItemSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     kind = serializers.CharField()
     slug = serializers.CharField()
-    image = serializers.SerializerMethodField()
-    image_count = serializers.SerializerMethodField()
+    media = serializers.SerializerMethodField()
+    media_count = serializers.SerializerMethodField()
     title = serializers.CharField()
     short_description = serializers.CharField()
     description = serializers.CharField()
@@ -45,19 +46,19 @@ class BaseListItemSerializer(serializers.Serializer):
     category = serializers.SerializerMethodField()
     zones = serializers.SerializerMethodField()
 
-    def get_image(self, obj):
-        first = getattr(obj, "images", None)
+    def get_media(self, obj):
+        first = getattr(obj, "media", None)
         if first is not None:
-            img = first.first()
-            if img:
-                return img.image.url
+            media_obj = first.first()
+            if media_obj:
+                return build_media_url(media_obj.media, media_obj.media_type)
         return None
 
-    def get_image_count(self, obj):
-        images = getattr(obj, "images", None)
-        if images is None:
+    def get_media_count(self, obj):
+        media = getattr(obj, "media", None)
+        if media is None:
             return 0
-        return images.count()
+        return media.count()
 
     def get_filters(self, obj):
         data = {

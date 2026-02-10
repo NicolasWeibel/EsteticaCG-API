@@ -10,9 +10,9 @@ from .treatment import TreatmentSerializer, PublicTreatmentSerializer
 from .journey import JourneySerializer, PublicJourneySerializer
 from .incompatibility import TreatmentZoneIncompatibilitySerializer
 from .gallery import (
-    TreatmentImageSerializer,
-    ComboImageSerializer,
-    JourneyImageSerializer,
+    TreatmentMediaSerializer,
+    ComboMediaSerializer,
+    JourneyMediaSerializer,
 )
 from .item_content import (
     ItemBenefitSerializer,
@@ -43,10 +43,10 @@ __all__ = [
     "TreatmentZoneConfigSerializer",
     "TreatmentSerializer",
     "PublicTreatmentSerializer",
-    "TreatmentImageSerializer",
+    "TreatmentMediaSerializer",
     "JourneySerializer",
     "PublicJourneySerializer",
-    "JourneyImageSerializer",
+    "JourneyMediaSerializer",
     "TreatmentZoneIncompatibilitySerializer",
     "ItemBenefitSerializer",
     "ItemRecommendedPointSerializer",
@@ -56,7 +56,7 @@ __all__ = [
     "ComboSessionItemSerializer",
     "ComboSerializer",
     "PublicComboSerializer",
-    "ComboImageSerializer",
+    "ComboMediaSerializer",
     # filters
     "TreatmentTypeSerializer",
     "ObjectiveSerializer",

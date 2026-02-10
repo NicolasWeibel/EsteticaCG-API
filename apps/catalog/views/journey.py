@@ -6,7 +6,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from ..models import Journey, Treatment, Combo, ItemOrder
-from ..serializers import JourneySerializer, PublicJourneySerializer, JourneyImageSerializer
+from ..serializers import JourneySerializer, PublicJourneySerializer, JourneyMediaSerializer
 from ..permissions import IsAdminOrReadOnly
 from .mixins import GalleryOrderingMixin, MultipartJsonMixin
 from ..services.listing import SORT_OPTIONS, sort_items, serialize_items
@@ -16,13 +16,13 @@ from ..services.filters_summary import build_filters_summary
 class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewSet):
     queryset = (
         Journey.objects.select_related("category")
-        .prefetch_related("images")
+        .prefetch_related("media")
         .order_by("title")
     )
     serializer_class = JourneySerializer
     permission_classes = [IsAdminOrReadOnly]
     parser_classes = (MultiPartParser, FormParser, JSONParser)
-    image_serializer_class = JourneyImageSerializer
+    media_serializer_class = JourneyMediaSerializer
     multipart_json_fields = ["addons"]
     filterset_fields = ["category"]
 
@@ -32,17 +32,17 @@ class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelVie
             return JourneySerializer
         return PublicJourneySerializer
 
-    @action(detail=True, methods=["post"], url_path="reorder-images")
-    def reorder_images(self, request, pk=None):
-        ordered_ids = request.data.get("ordered_ids", [])
+    @action(detail=True, methods=["post"], url_path="reorder-media")
+    def reorder_media(self, request, pk=None):
+        ordered_ids = request.data.get("ordered_media_ids", [])
         journey = self.get_object()
-        return self._reorder_images(journey, ordered_ids)
+        return self._reorder_media(journey, ordered_ids)
 
-    @action(detail=True, methods=["get"], url_path="images")
-    def images(self, request, pk=None):
+    @action(detail=True, methods=["get"], url_path="media")
+    def media(self, request, pk=None):
         journey = self.get_object()
-        images = journey.images.order_by("order")
-        return Response(self.image_serializer_class(images, many=True).data)
+        media_items = journey.media.order_by("order")
+        return Response(self.media_serializer_class(media_items, many=True).data)
 
     @action(detail=True, methods=["get"], url_path="items")
     def items(self, request, pk=None):
@@ -54,7 +54,7 @@ class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelVie
             sort_key = "price_asc"
 
         treatments = Treatment.objects.filter(journey=journey).prefetch_related(
-            "images",
+            "media",
             "zone_configs",
             "treatment_types",
             "objectives",
@@ -62,7 +62,7 @@ class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelVie
             "tags",
         )
         combos = Combo.objects.filter(journey=journey).prefetch_related(
-            "images",
+            "media",
             "ingredients__treatment_zone_config__zone",
             "treatment_types",
             "objectives",

@@ -5,9 +5,9 @@ from apps.catalog.views.treatment import TreatmentViewSet
 from apps.catalog.views.combo import ComboViewSet
 from apps.catalog.views.journey import JourneyViewSet
 from apps.catalog.views.gallery import (
-    TreatmentImageViewSet,
-    ComboImageViewSet,
-    JourneyImageViewSet,
+    TreatmentMediaViewSet,
+    ComboMediaViewSet,
+    JourneyMediaViewSet,
 )
 from apps.catalog.views.category import CategoryViewSet
 from apps.catalog.views.ordering import ItemOrderViewSet
@@ -25,11 +25,11 @@ from apps.catalog.views.filters import (
 
 router = DefaultRouter()
 router.register(r"treatments", TreatmentViewSet)
-router.register(r"treatment-images", TreatmentImageViewSet)
+router.register(r"treatment-media", TreatmentMediaViewSet)
 router.register(r"combos", ComboViewSet)
-router.register(r"combo-images", ComboImageViewSet)
+router.register(r"combo-media", ComboMediaViewSet)
 router.register(r"journeys", JourneyViewSet)
-router.register(r"journey-images", JourneyImageViewSet)
+router.register(r"journey-media", JourneyMediaViewSet)
 router.register(r"categories", CategoryViewSet)
 router.register(r"orders", ItemOrderViewSet)
 router.register(r"placements", PlacementViewSet)

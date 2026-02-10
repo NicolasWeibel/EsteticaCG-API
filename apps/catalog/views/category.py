@@ -25,7 +25,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
             sort_key = "price_asc"
 
         treatments = Treatment.objects.filter(category=category).prefetch_related(
-            "images",
+            "media",
             "zone_configs",
             "treatment_types",
             "objectives",
@@ -33,7 +33,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
             "tags",
         )
         combos = Combo.objects.filter(category=category).prefetch_related(
-            "images",
+            "media",
             "ingredients__treatment_zone_config__zone",
             "treatment_types",
             "objectives",
@@ -41,15 +41,15 @@ class CategoryViewSet(viewsets.ModelViewSet):
             "tags",
         )
         journeys = Journey.objects.filter(category=category).prefetch_related(
-            "images",
+            "media",
             "treatments__zone_configs",
-            "treatments__images",
+            "treatments__media",
             "treatments__treatment_types",
             "treatments__objectives",
             "treatments__intensities",
             "treatments__tags",
             "combos",
-            "combos__images",
+            "combos__media",
             "combos__ingredients__treatment_zone_config__zone",
             "combos__treatment_types",
             "combos__objectives",

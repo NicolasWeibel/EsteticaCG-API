@@ -5,7 +5,7 @@ import cloudinary.uploader
 
 from .models.treatment import TreatmentZoneConfig
 from .models.incompatibility import TreatmentZoneIncompatibility, positions_overlap
-from .models import TreatmentImage, ComboImage, JourneyImage
+from .models import TreatmentMedia, ComboMedia, JourneyMedia
 
 
 @receiver(post_save, sender=TreatmentZoneConfig)
@@ -35,10 +35,13 @@ def purge_invalid_incompatibilities(sender, instance: TreatmentZoneConfig, **kwa
 # Galería: cleanup + orden
 # =========================
 
-def delete_cloudinary_file(image_field):
-    if image_field:
+def delete_cloudinary_file(media_field, media_type=None):
+    if media_field:
         try:
-            cloudinary.uploader.destroy(image_field.name)
+            kwargs = {}
+            if media_type == "video":
+                kwargs["resource_type"] = "video"
+            cloudinary.uploader.destroy(media_field.name, **kwargs)
         except Exception as exc:
             print(f"Error Cloudinary: {exc}")
 
@@ -54,19 +57,19 @@ def reorder_siblings(queryset):
             queryset.model.objects.bulk_update(updates, ["order"])
 
 
-@receiver(post_delete, sender=TreatmentImage)
-def cleanup_treatment_image(sender, instance, **kwargs):
-    delete_cloudinary_file(instance.image)
-    reorder_siblings(instance.treatment.images.all())
+@receiver(post_delete, sender=TreatmentMedia)
+def cleanup_treatment_media(sender, instance, **kwargs):
+    delete_cloudinary_file(instance.media, instance.media_type)
+    reorder_siblings(instance.treatment.media.all())
 
 
-@receiver(post_delete, sender=ComboImage)
-def cleanup_combo_image(sender, instance, **kwargs):
-    delete_cloudinary_file(instance.image)
-    reorder_siblings(instance.combo.images.all())
+@receiver(post_delete, sender=ComboMedia)
+def cleanup_combo_media(sender, instance, **kwargs):
+    delete_cloudinary_file(instance.media, instance.media_type)
+    reorder_siblings(instance.combo.media.all())
 
 
-@receiver(post_delete, sender=JourneyImage)
-def cleanup_journey_image(sender, instance, **kwargs):
-    delete_cloudinary_file(instance.image)
-    reorder_siblings(instance.journey.images.all())
+@receiver(post_delete, sender=JourneyMedia)
+def cleanup_journey_media(sender, instance, **kwargs):
+    delete_cloudinary_file(instance.media, instance.media_type)
+    reorder_siblings(instance.journey.media.all())

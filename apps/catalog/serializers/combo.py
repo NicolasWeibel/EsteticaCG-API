@@ -9,7 +9,7 @@ from ..models import (
     Treatment,
     ComboIngredient,
     ComboSessionItem,
-    ComboImage,
+    ComboMedia,
     ItemBenefit,
     ItemRecommendedPoint,
     ItemFAQ,
@@ -17,12 +17,14 @@ from ..models import (
 from ..services.pricing import effective_price_for_combo
 from ..utils.gallery import reorder_gallery
 from .base import UUIDSerializer
-from .gallery import ComboImageSerializer
+from .gallery import ComboMediaSerializer
 from .item_content import (
     ItemBenefitSerializer,
     ItemRecommendedPointSerializer,
     ItemFAQSerializer,
 )
+from .media import MediaUploadMixin
+from ..utils.media import build_media_url
 from .fields import TagListField
 
 
@@ -44,33 +46,33 @@ class ComboSessionItemSerializer(UUIDSerializer):
         }
 
 
-class ComboSerializer(UUIDSerializer):
+class ComboSerializer(MediaUploadMixin, UUIDSerializer):
     ingredients = ComboIngredientSerializer(many=True, required=False)
     session_items = ComboSessionItemSerializer(many=True, required=False)
-    images = ComboImageSerializer(many=True, read_only=True)
+    media = ComboMediaSerializer(many=True, read_only=True)
     benefits = ItemBenefitSerializer(many=True, required=False)
     recommended_points = ItemRecommendedPointSerializer(many=True, required=False)
     faqs = ItemFAQSerializer(many=True, required=False)
     tags = TagListField(required=False)
-    cover_image = serializers.SerializerMethodField()
+    cover_media = serializers.SerializerMethodField()
     effective_price = serializers.SerializerMethodField()
     kind = serializers.SerializerMethodField()
-    uploaded_images = serializers.ListField(
-        child=serializers.ImageField(allow_empty_file=False, use_url=False),
+    uploaded_media = serializers.ListField(
+        child=serializers.FileField(allow_empty_file=False, use_url=False),
         write_only=True,
         required=False,
     )
-    removed_image_ids = serializers.ListField(
+    removed_media_ids = serializers.ListField(
         child=serializers.UUIDField(),
         write_only=True,
         required=False,
     )
-    ordered_ids = serializers.ListField(
+    ordered_media_ids = serializers.ListField(
         child=serializers.UUIDField(),
         write_only=True,
         required=False,
     )
-    images_order = serializers.ListField(
+    media_order = serializers.ListField(
         child=serializers.DictField(),
         write_only=True,
         required=False,
@@ -133,15 +135,23 @@ class ComboSerializer(UUIDSerializer):
         ser.is_valid(raise_exception=True)
         ser.save(combo=combo)
 
-    def _create_images(self, combo, images):
-        start = combo.images.count()
+    def _create_media(self, combo, media):
+        start = combo.media.count()
         to_create = []
-        for index, img_file in enumerate(images, start=start):
-            to_create.append(ComboImage(combo=combo, image=img_file, order=index))
+        for index, media_file in enumerate(media, start=start):
+            media_type = self._media_type_for_file(media_file)
+            to_create.append(
+                ComboMedia(
+                    combo=combo,
+                    media=media_file,
+                    media_type=media_type,
+                    order=index,
+                )
+            )
         if to_create:
-            ComboImage.objects.bulk_create(to_create)
+            ComboMedia.objects.bulk_create(to_create)
 
-    def _clean_uploaded_images(self, raw):
+    def _clean_uploaded_media(self, raw):
         if raw is None:
             return None
         if hasattr(raw, "read"):
@@ -421,7 +431,7 @@ class ComboSerializer(UUIDSerializer):
 
     def to_internal_value(self, data):
         mutable = data.copy()
-        images_order = mutable.get("images_order")
+        media_order = mutable.get("media_order")
         if "session_items" in mutable:
             mutable["session_items"] = self._parse_json_list(
                 mutable.get("session_items"), "session_items"
@@ -455,48 +465,48 @@ class ComboSerializer(UUIDSerializer):
             mutable["faqs_remove_ids"] = self._parse_id_list(
                 mutable.get("faqs_remove_ids"), "faqs_remove_ids"
             )
-        if "uploaded_images" in mutable:
-            cleaned = self._clean_uploaded_images(mutable.get("uploaded_images"))
+        if "uploaded_media" in mutable:
+            cleaned = self._clean_uploaded_media(mutable.get("uploaded_media"))
             if cleaned is None:
-                mutable.pop("uploaded_images", None)
+                mutable.pop("uploaded_media", None)
             else:
                 if hasattr(mutable, "setlist"):
-                    mutable.setlist("uploaded_images", cleaned)
+                    mutable.setlist("uploaded_media", cleaned)
                 else:
-                    mutable["uploaded_images"] = cleaned
-        if images_order is not None:
-            parsed_order = self._parse_images_order(images_order)
-            self.context["images_order"] = parsed_order
+                    mutable["uploaded_media"] = cleaned
+        if media_order is not None:
+            parsed_order = self._parse_media_order(media_order)
+            self.context["media_order"] = parsed_order
             files_map, plain_list = self._extract_uploaded_map(data)
             self.context["uploaded_map"] = files_map
             self.context["uploaded_list"] = plain_list
             if hasattr(mutable, "setlist"):
-                mutable.setlist("images_order", parsed_order)
+                mutable.setlist("media_order", parsed_order)
             else:
-                mutable["images_order"] = parsed_order
+                mutable["media_order"] = parsed_order
         return super().to_internal_value(mutable)
 
-    def _parse_images_order(self, raw):
+    def _parse_media_order(self, raw):
         if raw is None:
             return None
         if isinstance(raw, str):
             try:
                 raw = json.loads(raw)
             except Exception as exc:
-                raise ValidationError({"images_order": f"JSON inválido: {exc}"})
+                raise ValidationError({"media_order": f"JSON inválido: {exc}"})
         if not isinstance(raw, (list, tuple)):
-            raise ValidationError({"images_order": "Debe ser una lista"})
+            raise ValidationError({"media_order": "Debe ser una lista"})
         normalized = []
         for item in raw:
             if not isinstance(item, dict):
                 raise ValidationError(
-                    {"images_order": "Cada elemento debe ser un objeto con id o upload_key"}
+                    {"media_order": "Cada elemento debe ser un objeto con id o upload_key"}
                 )
             img_id = item.get("id")
             upload_key = item.get("upload_key")
             if not img_id and not upload_key:
                 raise ValidationError(
-                    {"images_order": "Cada elemento debe tener 'id' o 'upload_key'"}
+                    {"media_order": "Cada elemento debe tener 'id' o 'upload_key'"}
                 )
             normalized.append(
                 {
@@ -529,34 +539,34 @@ class ComboSerializer(UUIDSerializer):
         files_map = {}
         if request and hasattr(request, "FILES"):
             for key in request.FILES:
-                if key.startswith("uploaded_images[") and key.endswith("]"):
-                    upload_key = key[len("uploaded_images[") : -1]
+                if key.startswith("uploaded_media[") and key.endswith("]"):
+                    upload_key = key[len("uploaded_media[") : -1]
                     files_map[upload_key] = request.FILES.get(key)
         plain_list = []
         if request and hasattr(request, "FILES"):
-            plain_list = request.FILES.getlist("uploaded_images")
+            plain_list = request.FILES.getlist("uploaded_media")
         return files_map, plain_list
 
-    def _apply_mixed_order(self, combo, images_order, uploaded_map, uploaded_list):
-        existing_qs = list(combo.images.all())
-        existing_map = {str(img.id): img for img in existing_qs}
+    def _apply_mixed_order(self, combo, media_order, uploaded_map, uploaded_list):
+        existing_qs = list(combo.media.all())
+        existing_map = {str(item.id): item for item in existing_qs}
         used_ids = set()
         new_objs = []
         final_existing = []
         plain_iter = iter(uploaded_list or [])
 
-        for idx, item in enumerate(images_order):
-            img_id = item.get("id")
+        for idx, item in enumerate(media_order):
+            media_id = item.get("id")
             upload_key = item.get("upload_key")
-            if img_id:
-                img = existing_map.get(str(img_id))
-                if not img:
+            if media_id:
+                media_obj = existing_map.get(str(media_id))
+                if not media_obj:
                     raise ValidationError(
-                        {"images_order": f"Imagen {img_id} no pertenece al combo"}
+                        {"media_order": f"Media {media_id} no pertenece al combo"}
                     )
-                used_ids.add(str(img_id))
-                img.order = idx
-                final_existing.append(img)
+                used_ids.add(str(media_id))
+                media_obj.order = idx
+                final_existing.append(media_obj)
             elif upload_key:
                 file = uploaded_map.get(upload_key)
                 if not file:
@@ -564,25 +574,33 @@ class ComboSerializer(UUIDSerializer):
                         file = next(plain_iter)
                     except StopIteration:
                         raise ValidationError(
-                            {"images_order": f"No se encontró archivo para upload_key '{upload_key}'"}
+                            {"media_order": f"No se encontró archivo para upload_key '{upload_key}'"}
                         )
-                new_objs.append(ComboImage(combo=combo, image=file, order=idx))
+                media_type = self._media_type_for_file(file)
+                new_objs.append(
+                    ComboMedia(
+                        combo=combo,
+                        media=file,
+                        media_type=media_type,
+                        order=idx,
+                    )
+                )
 
-        tail = [img for img in existing_qs if str(img.id) not in used_ids]
-        order_start = len(images_order)
-        for offset, img in enumerate(tail):
-            img.order = order_start + offset
-            final_existing.append(img)
+        tail = [item for item in existing_qs if str(item.id) not in used_ids]
+        order_start = len(media_order)
+        for offset, media_obj in enumerate(tail):
+            media_obj.order = order_start + offset
+            final_existing.append(media_obj)
 
         if new_objs:
-            ComboImage.objects.bulk_create(new_objs)
+            ComboMedia.objects.bulk_create(new_objs)
         if final_existing:
-            ComboImage.objects.bulk_update(final_existing, ["order"])
+            ComboMedia.objects.bulk_update(final_existing, ["order"])
 
-    def get_cover_image(self, obj):
-        first_img = obj.images.first()
-        if first_img:
-            return first_img.image.url
+    def get_cover_media(self, obj):
+        first_media = obj.media.first()
+        if first_media:
+            return build_media_url(first_media.media, first_media.media_type)
         return None
 
     def get_effective_price(self, obj):
@@ -598,8 +616,8 @@ class ComboSerializer(UUIDSerializer):
         faqs = validated_data.pop("faqs", [])
         ingredients = validated_data.pop("ingredients", [])
         session_items = validated_data.pop("session_items", None)
-        uploaded_images = validated_data.pop("uploaded_images", [])
-        images_order = validated_data.pop("images_order", None)
+        uploaded_media = validated_data.pop("uploaded_media", [])
+        media_order = validated_data.pop("media_order", None)
         uploaded_map = self.context.get("uploaded_map", {})
         uploaded_list = self.context.get("uploaded_list", [])
         with transaction.atomic():
@@ -633,10 +651,10 @@ class ComboSerializer(UUIDSerializer):
                 ["question", "answer", "order"],
                 True,
             )
-            if images_order is not None:
-                self._apply_mixed_order(combo, images_order, uploaded_map, uploaded_list)
-            elif uploaded_images:
-                self._create_images(combo, uploaded_images)
+            if media_order is not None:
+                self._apply_mixed_order(combo, media_order, uploaded_map, uploaded_list)
+            elif uploaded_media:
+                self._create_media(combo, uploaded_media)
             if ingredients:
                 self._save_ingredients(combo, ingredients)
             if session_items is None:
@@ -664,10 +682,10 @@ class ComboSerializer(UUIDSerializer):
         faqs_remove_ids = validated_data.pop("faqs_remove_ids", None)
         ingredients = validated_data.pop("ingredients", None)
         session_items = validated_data.pop("session_items", None)
-        uploaded_images = validated_data.pop("uploaded_images", [])
-        removed_ids = validated_data.pop("removed_image_ids", [])
-        ordered_ids = validated_data.pop("ordered_ids", [])
-        images_order = validated_data.pop("images_order", None)
+        uploaded_media = validated_data.pop("uploaded_media", [])
+        removed_ids = validated_data.pop("removed_media_ids", [])
+        ordered_media_ids = validated_data.pop("ordered_media_ids", [])
+        media_order = validated_data.pop("media_order", None)
         uploaded_map = self.context.get("uploaded_map", {})
         uploaded_list = self.context.get("uploaded_list", [])
         with transaction.atomic():
@@ -702,11 +720,11 @@ class ComboSerializer(UUIDSerializer):
                 False,
             )
             if removed_ids:
-                combo.images.filter(id__in=removed_ids).delete()
-            if images_order is not None:
-                self._apply_mixed_order(combo, images_order, uploaded_map, uploaded_list)
-            if uploaded_images:
-                self._create_images(combo, uploaded_images)
+                combo.media.filter(id__in=removed_ids).delete()
+            if media_order is not None:
+                self._apply_mixed_order(combo, media_order, uploaded_map, uploaded_list)
+            if uploaded_media:
+                self._create_media(combo, uploaded_media)
             if ingredients is not None:
                 instance.ingredients.all().delete()
                 if ingredients:
@@ -729,8 +747,8 @@ class ComboSerializer(UUIDSerializer):
                         {"session_items": "session_items es requerido."}
                     )
                 self._validate_session_items(instance, existing_items)
-            if ordered_ids:
-                reorder_gallery(combo, ordered_ids)
+            if ordered_media_ids:
+                reorder_gallery(combo, ordered_media_ids)
             return combo
 
 
@@ -766,11 +784,11 @@ class PublicComboSerializer(ComboSerializer):
             "duration",
             "ingredients",
             "zones",
-            "images",
+            "media",
             "benefits",
             "recommended_points",
             "faqs",
-            "cover_image",
+            "cover_media",
             "effective_price",
             "kind",
         ]
@@ -829,3 +847,4 @@ class PublicComboSerializer(ComboSerializer):
             if zid not in zones_map:
                 zones_map[zid] = {"id": zone.id, "name": zone.name}
         return list(zones_map.values())
+

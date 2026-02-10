@@ -135,7 +135,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 # Configuración unificada de Almacenamiento (Django 4.2+)
 STORAGES = {
     "default": {
-        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+        "BACKEND": "apps.catalog.storage.AutoMediaCloudinaryStorage",
     },
     "staticfiles": {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
@@ -152,6 +152,7 @@ CLOUDINARY_STORAGE = {
     "CLOUD_NAME": env("CLOUDINARY_CLOUD_NAME", default=""),
     "API_KEY": env("CLOUDINARY_API_KEY", default=""),
     "API_SECRET": env("CLOUDINARY_API_SECRET", default=""),
+    "RESOURCE_TYPE": env("CLOUDINARY_RESOURCE_TYPE", default="auto"),
     "MEDIA_TAG": env("CLOUDINARY_FOLDER", default="estetica-general"),
     "PREFIX": env("CLOUDINARY_FOLDER", default="estetica-general"),
 }

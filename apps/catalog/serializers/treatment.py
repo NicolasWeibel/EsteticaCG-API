@@ -7,7 +7,7 @@ from rest_framework.exceptions import ValidationError
 
 from ..models import (
     Treatment,
-    TreatmentImage,
+    TreatmentMedia,
     TreatmentZoneConfig,
     Combo,
     ItemBenefit,
@@ -16,7 +16,7 @@ from ..models import (
 )
 from ..services.pricing import effective_price_for_treatment
 from ..utils.gallery import reorder_gallery
-from .gallery import TreatmentImageSerializer
+from .gallery import TreatmentMediaSerializer
 from .item_content import (
     ItemBenefitSerializer,
     ItemRecommendedPointSerializer,
@@ -25,35 +25,37 @@ from .item_content import (
 from .treatmentzoneconfig import TreatmentZoneConfigSerializer
 from .fields import TagListField
 from .base import UUIDSerializer
+from .media import MediaUploadMixin
+from ..utils.media import build_media_url
 
 
-class TreatmentSerializer(UUIDSerializer):
+class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
     zone_configs = TreatmentZoneConfigSerializer(many=True, required=False)
-    images = TreatmentImageSerializer(many=True, read_only=True)
+    media = TreatmentMediaSerializer(many=True, read_only=True)
     benefits = ItemBenefitSerializer(many=True, required=False)
     recommended_points = ItemRecommendedPointSerializer(many=True, required=False)
     faqs = ItemFAQSerializer(many=True, required=False)
     tags = TagListField(required=False)
-    cover_image = serializers.SerializerMethodField()
+    cover_media = serializers.SerializerMethodField()
     effective_price = serializers.SerializerMethodField()
     kind = serializers.SerializerMethodField()
     duration = serializers.SerializerMethodField()
-    uploaded_images = serializers.ListField(
-        child=serializers.ImageField(allow_empty_file=False, use_url=False),
+    uploaded_media = serializers.ListField(
+        child=serializers.FileField(allow_empty_file=False, use_url=False),
         write_only=True,
         required=False,
     )
-    removed_image_ids = serializers.ListField(
+    removed_media_ids = serializers.ListField(
         child=serializers.UUIDField(),
         write_only=True,
         required=False,
     )
-    ordered_ids = serializers.ListField(
+    ordered_media_ids = serializers.ListField(
         child=serializers.UUIDField(),
         write_only=True,
         required=False,
     )
-    images_order = serializers.ListField(
+    media_order = serializers.ListField(
         child=serializers.DictField(),
         write_only=True,
         required=False,
@@ -222,7 +224,7 @@ class TreatmentSerializer(UUIDSerializer):
         if to_update:
             model_cls.objects.bulk_update(to_update, ["order"])
 
-    def _clean_uploaded_images(self, raw):
+    def _clean_uploaded_media(self, raw):
         """
         Acepta solo archivos; si llegan strings/URLs los ignora para evitar
         que el serializer interprete cada carácter como un item de la lista.
@@ -266,15 +268,15 @@ class TreatmentSerializer(UUIDSerializer):
             mutable["faqs_remove_ids"] = self._parse_id_list(
                 mutable.get("faqs_remove_ids"), "faqs_remove_ids"
             )
-        if "uploaded_images" in mutable:
-            cleaned = self._clean_uploaded_images(mutable.get("uploaded_images"))
+        if "uploaded_media" in mutable:
+            cleaned = self._clean_uploaded_media(mutable.get("uploaded_media"))
             if cleaned is None:
-                mutable.pop("uploaded_images", None)
+                mutable.pop("uploaded_media", None)
             else:
                 if hasattr(mutable, "setlist"):
-                    mutable.setlist("uploaded_images", cleaned)
+                    mutable.setlist("uploaded_media", cleaned)
                 else:
-                    mutable["uploaded_images"] = cleaned
+                    mutable["uploaded_media"] = cleaned
         return super().to_internal_value(mutable)
 
     def validate(self, attrs):
@@ -306,10 +308,10 @@ class TreatmentSerializer(UUIDSerializer):
                 )
         return attrs
 
-    def get_cover_image(self, obj):
-        first_img = obj.images.first()
-        if first_img:
-            return first_img.image.url
+    def get_cover_media(self, obj):
+        first_media = obj.media.first()
+        if first_media:
+            return build_media_url(first_media.media, first_media.media_type)
         return None
 
     def get_effective_price(self, obj):
@@ -328,17 +330,23 @@ class TreatmentSerializer(UUIDSerializer):
             return None
         return int(round(avg_duration))
 
-    def _create_images(self, treatment, images):
-        start = treatment.images.count()
+    def _create_media(self, treatment, media):
+        start = treatment.media.count()
         to_create = []
-        for index, img_file in enumerate(images, start=start):
+        for index, media_file in enumerate(media, start=start):
+            media_type = self._media_type_for_file(media_file)
             to_create.append(
-                TreatmentImage(treatment=treatment, image=img_file, order=index)
+                TreatmentMedia(
+                    treatment=treatment,
+                    media=media_file,
+                    media_type=media_type,
+                    order=index,
+                )
             )
         if to_create:
-            TreatmentImage.objects.bulk_create(to_create)
+            TreatmentMedia.objects.bulk_create(to_create)
 
-    def _clean_uploaded_images(self, raw):
+    def _clean_uploaded_media(self, raw):
         """
         Mantiene compatibilidad con el payload actual, pero descarta strings.
         """
@@ -370,27 +378,27 @@ class TreatmentSerializer(UUIDSerializer):
                 raise ValidationError({"zone_configs": f"JSON inválido: {exc}"})
         return raw
 
-    def _parse_images_order(self, raw):
+    def _parse_media_order(self, raw):
         if raw is None:
             return None
         if isinstance(raw, str):
             try:
                 raw = json.loads(raw)
             except Exception as exc:
-                raise ValidationError({"images_order": f"JSON inválido: {exc}"})
+                raise ValidationError({"media_order": f"JSON inválido: {exc}"})
         if not isinstance(raw, (list, tuple)):
-            raise ValidationError({"images_order": "Debe ser una lista"})
+            raise ValidationError({"media_order": "Debe ser una lista"})
         normalized = []
         for item in raw:
             if not isinstance(item, dict):
                 raise ValidationError(
-                    {"images_order": "Cada elemento debe ser un objeto con id o upload_key"}
+                    {"media_order": "Cada elemento debe ser un objeto con id o upload_key"}
                 )
             img_id = item.get("id")
             upload_key = item.get("upload_key")
             if not img_id and not upload_key:
                 raise ValidationError(
-                    {"images_order": "Cada elemento debe tener 'id' o 'upload_key'"}
+                    {"media_order": "Cada elemento debe tener 'id' o 'upload_key'"}
                 )
             normalized.append(
                 {
@@ -402,25 +410,25 @@ class TreatmentSerializer(UUIDSerializer):
 
     def _extract_uploaded_map(self, data):
         """
-        Busca archivos con nombre uploaded_images[<key>] en request.FILES
+        Busca archivos con nombre uploaded_media[<key>] en request.FILES
         y arma un dict upload_key -> file.
         """
         request = self.context.get("request")
         files_map = {}
         if request and hasattr(request, "FILES"):
             for key in request.FILES:
-                if key.startswith("uploaded_images[") and key.endswith("]"):
-                    upload_key = key[len("uploaded_images[") : -1]
+                if key.startswith("uploaded_media[") and key.endswith("]"):
+                    upload_key = key[len("uploaded_media[") : -1]
                     files_map[upload_key] = request.FILES.get(key)
-        # fallback: si viene lista simple y hay images_order con upload_key, intentar mapear en orden
+        # fallback: si viene lista simple y hay media_order con upload_key, intentar mapear en orden
         plain_list = []
         if request and hasattr(request, "FILES"):
-            plain_list = request.FILES.getlist("uploaded_images")
+            plain_list = request.FILES.getlist("uploaded_media")
         return files_map, plain_list
 
     def to_internal_value(self, data):
         mutable = data.copy()
-        images_order = mutable.get("images_order")
+        media_order = mutable.get("media_order")
         if "zone_configs" in mutable:
             mutable["zone_configs"] = self._parse_zone_configs(
                 mutable.get("zone_configs")
@@ -448,50 +456,50 @@ class TreatmentSerializer(UUIDSerializer):
             mutable["faqs_remove_ids"] = self._parse_id_list(
                 mutable.get("faqs_remove_ids"), "faqs_remove_ids"
             )
-        if "uploaded_images" in mutable:
-            cleaned = self._clean_uploaded_images(mutable.get("uploaded_images"))
+        if "uploaded_media" in mutable:
+            cleaned = self._clean_uploaded_media(mutable.get("uploaded_media"))
             if cleaned is None:
-                mutable.pop("uploaded_images", None)
+                mutable.pop("uploaded_media", None)
             else:
                 if hasattr(mutable, "setlist"):
-                    mutable.setlist("uploaded_images", cleaned)
+                    mutable.setlist("uploaded_media", cleaned)
                 else:
-                    mutable["uploaded_images"] = cleaned
-        if images_order is not None:
-            parsed_order = self._parse_images_order(images_order)
-            self.context["images_order"] = parsed_order
+                    mutable["uploaded_media"] = cleaned
+        if media_order is not None:
+            parsed_order = self._parse_media_order(media_order)
+            self.context["media_order"] = parsed_order
             files_map, plain_list = self._extract_uploaded_map(data)
             self.context["uploaded_map"] = files_map
             self.context["uploaded_list"] = plain_list
             if hasattr(mutable, "setlist"):
-                mutable.setlist("images_order", parsed_order)
+                mutable.setlist("media_order", parsed_order)
             else:
-                mutable["images_order"] = parsed_order
+                mutable["media_order"] = parsed_order
         return super().to_internal_value(mutable)
 
-    def _apply_mixed_order(self, treatment, images_order, uploaded_map, uploaded_list):
+    def _apply_mixed_order(self, treatment, media_order, uploaded_map, uploaded_list):
         """
-        Reordena y crea nuevas imágenes según images_order.
+        Reordena y crea nuevos medios según media_order.
         """
-        existing_qs = list(treatment.images.all())
-        existing_map = {str(img.id): img for img in existing_qs}
+        existing_qs = list(treatment.media.all())
+        existing_map = {str(item.id): item for item in existing_qs}
         used_ids = set()
         new_objs = []
         final_existing = []
         plain_iter = iter(uploaded_list or [])
 
-        for idx, item in enumerate(images_order):
-            img_id = item.get("id")
+        for idx, item in enumerate(media_order):
+            media_id = item.get("id")
             upload_key = item.get("upload_key")
-            if img_id:
-                img = existing_map.get(str(img_id))
-                if not img:
+            if media_id:
+                media_obj = existing_map.get(str(media_id))
+                if not media_obj:
                     raise ValidationError(
-                        {"images_order": f"Imagen {img_id} no pertenece al tratamiento"}
+                        {"media_order": f"Media {media_id} no pertenece al tratamiento"}
                     )
-                used_ids.add(str(img_id))
-                img.order = idx
-                final_existing.append(img)
+                used_ids.add(str(media_id))
+                media_obj.order = idx
+                final_existing.append(media_obj)
             elif upload_key:
                 file = uploaded_map.get(upload_key)
                 if not file:
@@ -500,25 +508,31 @@ class TreatmentSerializer(UUIDSerializer):
                         file = next(plain_iter)
                     except StopIteration:
                         raise ValidationError(
-                            {"images_order": f"No se encontró archivo para upload_key '{upload_key}'"}
+                            {"media_order": f"No se encontró archivo para upload_key '{upload_key}'"}
                         )
+                media_type = self._media_type_for_file(file)
                 new_objs.append(
-                    TreatmentImage(treatment=treatment, image=file, order=idx)
+                    TreatmentMedia(
+                        treatment=treatment,
+                        media=file,
+                        media_type=media_type,
+                        order=idx,
+                    )
                 )
 
         # agregar existentes que no se mencionaron, al final
         tail = [
-            img for img in existing_qs if str(img.id) not in used_ids
+            item for item in existing_qs if str(item.id) not in used_ids
         ]
-        order_start = len(images_order)
-        for offset, img in enumerate(tail):
-            img.order = order_start + offset
-            final_existing.append(img)
+        order_start = len(media_order)
+        for offset, media_obj in enumerate(tail):
+            media_obj.order = order_start + offset
+            final_existing.append(media_obj)
 
         if new_objs:
-            TreatmentImage.objects.bulk_create(new_objs)
+            TreatmentMedia.objects.bulk_create(new_objs)
         if final_existing:
-            TreatmentImage.objects.bulk_update(final_existing, ["order"])
+            TreatmentMedia.objects.bulk_update(final_existing, ["order"])
 
     def _save_zone_configs(self, treatment, zone_configs):
         normalized = [
@@ -537,8 +551,8 @@ class TreatmentSerializer(UUIDSerializer):
         recommended_points = validated_data.pop("recommended_points", [])
         faqs = validated_data.pop("faqs", [])
         zone_configs = validated_data.pop("zone_configs", [])
-        uploaded_images = validated_data.pop("uploaded_images", [])
-        images_order = validated_data.pop("images_order", None)
+        uploaded_media = validated_data.pop("uploaded_media", [])
+        media_order = validated_data.pop("media_order", None)
         uploaded_map = self.context.get("uploaded_map", {})
         uploaded_list = self.context.get("uploaded_list", [])
         with transaction.atomic():
@@ -572,10 +586,10 @@ class TreatmentSerializer(UUIDSerializer):
                 ["question", "answer", "order"],
                 True,
             )
-            if images_order is not None:
-                self._apply_mixed_order(treatment, images_order, uploaded_map, uploaded_list)
-            elif uploaded_images:
-                self._create_images(treatment, uploaded_images)
+            if media_order is not None:
+                self._apply_mixed_order(treatment, media_order, uploaded_map, uploaded_list)
+            elif uploaded_media:
+                self._create_media(treatment, uploaded_media)
             if zone_configs:
                 self._save_zone_configs(treatment, zone_configs)
             return treatment
@@ -591,10 +605,10 @@ class TreatmentSerializer(UUIDSerializer):
         )
         faqs_remove_ids = validated_data.pop("faqs_remove_ids", None)
         zone_configs = validated_data.pop("zone_configs", None)
-        uploaded_images = validated_data.pop("uploaded_images", [])
-        removed_ids = validated_data.pop("removed_image_ids", [])
-        ordered_ids = validated_data.pop("ordered_ids", [])
-        images_order = validated_data.pop("images_order", None)
+        uploaded_media = validated_data.pop("uploaded_media", [])
+        removed_ids = validated_data.pop("removed_media_ids", [])
+        ordered_media_ids = validated_data.pop("ordered_media_ids", [])
+        media_order = validated_data.pop("media_order", None)
         uploaded_map = self.context.get("uploaded_map", {})
         uploaded_list = self.context.get("uploaded_list", [])
         with transaction.atomic():
@@ -629,17 +643,17 @@ class TreatmentSerializer(UUIDSerializer):
                 False,
             )
             if removed_ids:
-                treatment.images.filter(id__in=removed_ids).delete()
-            if images_order is not None:
-                self._apply_mixed_order(treatment, images_order, uploaded_map, uploaded_list)
-            elif uploaded_images:
-                self._create_images(treatment, uploaded_images)
+                treatment.media.filter(id__in=removed_ids).delete()
+            if media_order is not None:
+                self._apply_mixed_order(treatment, media_order, uploaded_map, uploaded_list)
+            elif uploaded_media:
+                self._create_media(treatment, uploaded_media)
             if zone_configs is not None:
                 treatment.zone_configs.all().delete()
                 if zone_configs:
                     self._save_zone_configs(treatment, zone_configs)
-        if ordered_ids:
-            reorder_gallery(treatment, ordered_ids)
+        if ordered_media_ids:
+            reorder_gallery(treatment, ordered_media_ids)
         return treatment
 
 
@@ -669,11 +683,11 @@ class PublicTreatmentSerializer(TreatmentSerializer):
             "intensities",
             "requires_zones",
             "zone_configs",
-            "images",
+            "media",
             "benefits",
             "recommended_points",
             "faqs",
-            "cover_image",
+            "cover_media",
             "effective_price",
             "kind",
             "duration",
@@ -717,3 +731,4 @@ class PublicTreatmentZoneConfigSerializer(UUIDSerializer):
         if not zone:
             return None
         return zone.name
+

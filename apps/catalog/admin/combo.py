@@ -7,12 +7,13 @@ from ..models import (
     Combo,
     ComboIngredient,
     ComboSessionItem,
-    ComboImage,
+    ComboMedia,
     ItemBenefit,
     ItemRecommendedPoint,
     ItemFAQ,
 )
-from .mixins import CloudinaryImageAdminMixin
+from .mixins import CloudinaryMediaAdminMixin
+from ..utils.media import build_media_url
 
 
 class ComboIngredientInline(admin.TabularInline):
@@ -27,18 +28,24 @@ class ComboSessionItemInline(admin.TabularInline):
     fields = ("session_index", "ingredient")
 
 
-class ComboImageInline(admin.TabularInline):
-    model = ComboImage
+class ComboMediaInline(admin.TabularInline):
+    model = ComboMedia
     extra = 1
-    fields = ("image_preview", "image", "alt_text", "order")
-    readonly_fields = ("image_preview",)
+    fields = ("media_preview", "media", "media_type", "alt_text", "order")
+    readonly_fields = ("media_preview",)
     ordering = ("order",)
 
-    def image_preview(self, obj):
-        if obj.image:
+    def media_preview(self, obj):
+        if obj.media:
+            url = build_media_url(obj.media, obj.media_type)
+            if getattr(obj, "media_type", "image") == "video":
+                return format_html(
+                    '<video src="{}" controls muted preload="metadata" style="height: 80px; border-radius: 5px;"></video>',
+                    url,
+                )
             return format_html(
                 '<img src="{}" style="height: 80px; border-radius: 5px;" />',
-                obj.image.url,
+                url,
             )
         return ""
 
@@ -65,9 +72,9 @@ class ItemFAQInline(GenericTabularInline):
 
 
 @admin.register(Combo)
-class ComboAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
+class ComboAdmin(CloudinaryMediaAdminMixin, admin.ModelAdmin):
     list_display = (
-        "image_preview_list",  # 👈 Foto
+        "media_preview_list",  # 👈 Foto
         "title",
         "slug",
         "category",
@@ -85,7 +92,7 @@ class ComboAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
     list_filter = ("category", "journey", "is_active", "is_featured")
     search_fields = ("title", "description", "slug")
     inlines = [
-        ComboImageInline,
+        ComboMediaInline,
         ItemBenefitInline,
         ItemRecommendedPointInline,
         ItemFAQInline,
@@ -94,7 +101,7 @@ class ComboAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
     ]
 
     # Preview en readonly
-    readonly_fields = ("image_preview_detail", "id", "created_at", "updated_at")
+    readonly_fields = ("media_preview_detail", "id", "created_at", "updated_at")
 
     autocomplete_fields = (
         "category",

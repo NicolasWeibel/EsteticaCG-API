@@ -1,18 +1,18 @@
 # apps/catalog/admin/category.py
 from django.contrib import admin
 from ..models import Category
-from .mixins import CloudinaryImageAdminMixin  # 👈 Importamos
+from .mixins import CloudinaryMediaAdminMixin  # 👈 Importamos
 
 
 @admin.register(Category)
-class CategoryAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):  # 👈 Heredamos
-    list_display = ("image_preview_list", "name", "slug")  # Agregamos la columna
+class CategoryAdmin(CloudinaryMediaAdminMixin, admin.ModelAdmin):  # 👈 Heredamos
+    list_display = ("media_preview_list", "name", "slug")  # Agregamos la columna
     search_fields = ("name", "slug")
-    readonly_fields = ("image_preview_detail",)  # Agregamos el detalle
+    readonly_fields = ("media_preview_detail",)  # Agregamos el detalle
 
     # Opcional: Para ver la foto al editar
     fields = (
-        "image_preview_detail",
+        "media_preview_detail",
         "image",
         "name",
         "slug",

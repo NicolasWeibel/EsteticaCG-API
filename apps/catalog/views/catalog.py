@@ -18,9 +18,9 @@ class CatalogSummaryView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        treatments_qs = Treatment.objects.all().prefetch_related("images", "tags")
-        combos_qs = Combo.objects.all().prefetch_related("images", "tags")
-        journeys_qs = Journey.objects.all().prefetch_related("images")
+        treatments_qs = Treatment.objects.all().prefetch_related("media", "tags")
+        combos_qs = Combo.objects.all().prefetch_related("media", "tags")
+        journeys_qs = Journey.objects.all().prefetch_related("media")
 
         treatments = TreatmentSerializer(treatments_qs, many=True).data
         combos = ComboSerializer(combos_qs, many=True).data

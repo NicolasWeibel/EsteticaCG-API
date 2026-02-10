@@ -6,13 +6,14 @@ from django.utils.html import format_html
 from ..models import (
     Treatment,
     TreatmentZoneConfig,
-    TreatmentImage,
+    TreatmentMedia,
     ItemBenefit,
     ItemRecommendedPoint,
     ItemFAQ,
 )
 from .incompatibility import IncompatibilityInline, IncompatibilityInlineReverse
-from .mixins import CloudinaryImageAdminMixin  # ?? Importamos
+from .mixins import CloudinaryMediaAdminMixin  # ?? Importamos
+from ..utils.media import build_media_url
 
 
 class TreatmentZoneConfigInline(admin.StackedInline):
@@ -23,18 +24,24 @@ class TreatmentZoneConfigInline(admin.StackedInline):
     show_change_link = True
 
 
-class TreatmentImageInline(admin.TabularInline):
-    model = TreatmentImage
+class TreatmentMediaInline(admin.TabularInline):
+    model = TreatmentMedia
     extra = 1
-    fields = ("image_preview", "image", "alt_text", "order")
-    readonly_fields = ("image_preview",)
+    fields = ("media_preview", "media", "media_type", "alt_text", "order")
+    readonly_fields = ("media_preview",)
     ordering = ("order",)
 
-    def image_preview(self, obj):
-        if obj.image:
+    def media_preview(self, obj):
+        if obj.media:
+            url = build_media_url(obj.media, obj.media_type)
+            if getattr(obj, "media_type", "image") == "video":
+                return format_html(
+                    '<video src="{}" controls muted preload="metadata" style="height: 80px; border-radius: 5px;"></video>',
+                    url,
+                )
             return format_html(
                 '<img src="{}" style="height: 80px; border-radius: 5px;" />',
-                obj.image.url,
+                url,
             )
         return ""
 
@@ -78,9 +85,9 @@ class TreatmentZoneConfigAdmin(admin.ModelAdmin):
 
 
 @admin.register(Treatment)
-class TreatmentAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
+class TreatmentAdmin(CloudinaryMediaAdminMixin, admin.ModelAdmin):
     list_display = (
-        "image_preview_list",  # ?? Agregamos foto
+        "media_preview_list",  # ?? Agregamos foto
         "title",
         "slug",
         "category",
@@ -100,7 +107,7 @@ class TreatmentAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
     )
     search_fields = ("title", "description", "slug")
     inlines = [
-        TreatmentImageInline,
+        TreatmentMediaInline,
         ItemBenefitInline,
         ItemRecommendedPointInline,
         ItemFAQInline,
@@ -108,7 +115,7 @@ class TreatmentAdmin(CloudinaryImageAdminMixin, admin.ModelAdmin):
     ]
 
     # Agregamos el preview a readonly
-    readonly_fields = ("image_preview_detail", "id", "created_at", "updated_at")
+    readonly_fields = ("media_preview_detail", "id", "created_at", "updated_at")
 
     autocomplete_fields = (
         "category",

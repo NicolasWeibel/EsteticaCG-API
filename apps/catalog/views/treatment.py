@@ -9,7 +9,7 @@ from ..models import Treatment
 from ..serializers import (
     TreatmentSerializer,
     PublicTreatmentSerializer,
-    TreatmentImageSerializer,
+    TreatmentMediaSerializer,
 )
 from .mixins import GalleryOrderingMixin, MultipartJsonMixin
 
@@ -19,7 +19,7 @@ class TreatmentViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelV
         Treatment.objects.annotate(avg_duration=Avg("zone_configs__duration"))
         .select_related("category", "journey")
         .prefetch_related(
-            "images",
+            "media",
             "tags",
             "benefits",
             "recommended_points",
@@ -32,7 +32,7 @@ class TreatmentViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelV
     serializer_class = TreatmentSerializer
     permission_classes = [IsAdminOrReadOnly]
     parser_classes = (MultiPartParser, FormParser, JSONParser)
-    image_serializer_class = TreatmentImageSerializer
+    media_serializer_class = TreatmentMediaSerializer
     multipart_json_fields = ["zone_configs", "benefits", "recommended_points", "faqs"]
     filterset_fields = ["category", "journey"]
     search_fields = ["title", "description"]
@@ -50,17 +50,17 @@ class TreatmentViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelV
             return TreatmentSerializer
         return PublicTreatmentSerializer
 
-    @action(detail=True, methods=["post"], url_path="reorder-images")
-    def reorder_images(self, request, pk=None):
-        ordered_ids = request.data.get("ordered_ids", [])
+    @action(detail=True, methods=["post"], url_path="reorder-media")
+    def reorder_media(self, request, pk=None):
+        ordered_ids = request.data.get("ordered_media_ids", [])
         treatment = self.get_object()
-        return self._reorder_images(treatment, ordered_ids)
+        return self._reorder_media(treatment, ordered_ids)
 
-    @action(detail=True, methods=["get"], url_path="images")
-    def images(self, request, pk=None):
+    @action(detail=True, methods=["get"], url_path="media")
+    def media(self, request, pk=None):
         treatment = self.get_object()
-        images = treatment.images.order_by("order")
-        return Response(self.image_serializer_class(images, many=True).data)
+        media_items = treatment.media.order_by("order")
+        return Response(self.media_serializer_class(media_items, many=True).data)
 
     @action(detail=False, methods=["get"], url_path=r"by-slug/(?P<slug>[^/.]+)")
     def by_slug(self, request, slug=None):

@@ -1,27 +1,27 @@
 from rest_framework import mixins, viewsets
 
-from ..models import TreatmentImage, ComboImage, JourneyImage
+from ..models import TreatmentMedia, ComboMedia, JourneyMedia
 from ..permissions import IsAdminOrReadOnly
 from ..serializers import (
-    TreatmentImageSerializer,
-    ComboImageSerializer,
-    JourneyImageSerializer,
+    TreatmentMediaSerializer,
+    ComboMediaSerializer,
+    JourneyMediaSerializer,
 )
 
 
-class TreatmentImageViewSet(mixins.DestroyModelMixin, viewsets.GenericViewSet):
-    queryset = TreatmentImage.objects.all()
-    serializer_class = TreatmentImageSerializer
+class TreatmentMediaViewSet(mixins.DestroyModelMixin, viewsets.GenericViewSet):
+    queryset = TreatmentMedia.objects.all()
+    serializer_class = TreatmentMediaSerializer
     permission_classes = [IsAdminOrReadOnly]
 
 
-class ComboImageViewSet(mixins.DestroyModelMixin, viewsets.GenericViewSet):
-    queryset = ComboImage.objects.all()
-    serializer_class = ComboImageSerializer
+class ComboMediaViewSet(mixins.DestroyModelMixin, viewsets.GenericViewSet):
+    queryset = ComboMedia.objects.all()
+    serializer_class = ComboMediaSerializer
     permission_classes = [IsAdminOrReadOnly]
 
 
-class JourneyImageViewSet(mixins.DestroyModelMixin, viewsets.GenericViewSet):
-    queryset = JourneyImage.objects.all()
-    serializer_class = JourneyImageSerializer
+class JourneyMediaViewSet(mixins.DestroyModelMixin, viewsets.GenericViewSet):
+    queryset = JourneyMedia.objects.all()
+    serializer_class = JourneyMediaSerializer
     permission_classes = [IsAdminOrReadOnly]

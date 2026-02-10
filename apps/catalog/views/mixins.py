@@ -22,7 +22,7 @@ class MultipartJsonMixin:
             return data
 
         # 1. CONVERSIÓN SEGURA A DICT:
-        # Usamos .lists() para no perder archivos múltiples (uploaded_images)
+        # Usamos .lists() para no perder archivos múltiples (uploaded_media)
         parsed_data = {}
         for key, value in data.lists():
             # Si la lista tiene un solo elemento, lo sacamos (comportamiento estándar)
@@ -70,19 +70,19 @@ class MultipartJsonMixin:
 
 class GalleryOrderingMixin:
     """
-    Helper mixin to reorder gallery images for a parent object.
+    Helper mixin to reorder gallery media for a parent object.
     """
 
-    image_serializer_class = None
+    media_serializer_class = None
 
-    def _reorder_images(self, obj, ordered_ids):
+    def _reorder_media(self, obj, ordered_ids):
         try:
             reorder_gallery(obj, ordered_ids)
         except Exception as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer_cls = self.image_serializer_class
+        serializer_cls = self.media_serializer_class
         if serializer_cls:
-            ordered = obj.images.order_by("order")
+            ordered = obj.media.order_by("order")
             return Response(serializer_cls(ordered, many=True).data)
         return Response(status=status.HTTP_204_NO_CONTENT)
