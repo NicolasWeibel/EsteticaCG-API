@@ -545,13 +545,96 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
         ser.is_valid(raise_exception=True)
         ser.save(treatment=treatment)
 
+    def _sync_zone_configs(self, treatment, zone_configs):
+        if zone_configs is None:
+            return
+        if not isinstance(zone_configs, (list, tuple)):
+            raise ValidationError({"zone_configs": "Debe ser una lista"})
+
+        normalized = [
+            {**cfg, "zone": getattr(cfg.get("zone"), "id", cfg.get("zone"))}
+            for cfg in zone_configs
+        ]
+        existing = list(treatment.zone_configs.all())
+        existing_by_id = {str(obj.id): obj for obj in existing}
+        existing_by_zone = {str(obj.zone_id): obj for obj in existing}
+        seen_ids = set()
+        seen_zones = set()
+
+        for cfg in normalized:
+            if not isinstance(cfg, dict):
+                raise ValidationError({"zone_configs": "Cada elemento debe ser un objeto"})
+
+            item_id = cfg.get("id")
+            zone_id = cfg.get("zone")
+            zone_key = str(zone_id) if zone_id else None
+
+            if zone_key:
+                if zone_key in seen_zones:
+                    raise ValidationError(
+                        {"zone_configs": "Hay zonas duplicadas en la lista."}
+                    )
+                seen_zones.add(zone_key)
+
+            payload = dict(cfg)
+            payload.pop("id", None)
+
+            if item_id:
+                item_key = str(item_id)
+                if item_key in seen_ids:
+                    raise ValidationError(
+                        {"zone_configs": "Hay IDs duplicados en la lista."}
+                    )
+                obj = existing_by_id.get(item_key)
+                if not obj:
+                    raise ValidationError(
+                        {"zone_configs": f"El id {item_id} no pertenece a este tratamiento"}
+                    )
+                ser = TreatmentZoneConfigSerializer(
+                    instance=obj, data=payload, context=self.context
+                )
+                ser.is_valid(raise_exception=True)
+                ser.save()
+                seen_ids.add(item_key)
+                continue
+
+            # Si no hay id pero la zona ya existe, actualizarla en vez de crear
+            if zone_key:
+                obj = existing_by_zone.get(zone_key)
+                if obj:
+                    ser = TreatmentZoneConfigSerializer(
+                        instance=obj, data=payload, context=self.context
+                    )
+                    ser.is_valid(raise_exception=True)
+                    ser.save()
+                    seen_ids.add(str(obj.id))
+                    continue
+
+            ser = TreatmentZoneConfigSerializer(
+                data=payload, context=self.context
+            )
+            ser.is_valid(raise_exception=True)
+            ser.save(treatment=treatment)
+
+        existing_ids = {str(obj.id) for obj in existing}
+        to_delete = existing_ids - seen_ids
+        if to_delete:
+            treatment.zone_configs.filter(id__in=to_delete).delete()
+
     def create(self, validated_data):
         tags = validated_data.pop("tags", None)
         benefits = validated_data.pop("benefits", [])
         recommended_points = validated_data.pop("recommended_points", [])
         faqs = validated_data.pop("faqs", [])
+        benefits_remove_ids = validated_data.pop("benefits_remove_ids", None)
+        recommended_points_remove_ids = validated_data.pop(
+            "recommended_points_remove_ids", None
+        )
+        faqs_remove_ids = validated_data.pop("faqs_remove_ids", None)
         zone_configs = validated_data.pop("zone_configs", [])
         uploaded_media = validated_data.pop("uploaded_media", [])
+        removed_ids = validated_data.pop("removed_media_ids", [])
+        ordered_media_ids = validated_data.pop("ordered_media_ids", [])
         media_order = validated_data.pop("media_order", None)
         uploaded_map = self.context.get("uploaded_map", {})
         uploaded_list = self.context.get("uploaded_list", [])
@@ -581,11 +664,13 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
                 treatment,
                 ItemFAQ,
                 faqs,
-                [],
+                faqs_remove_ids,
                 "faqs",
                 ["question", "answer", "order"],
                 True,
             )
+            if removed_ids:
+                treatment.media.filter(id__in=removed_ids).delete()
             if media_order is not None:
                 self._apply_mixed_order(treatment, media_order, uploaded_map, uploaded_list)
             elif uploaded_media:
@@ -649,9 +734,7 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
             elif uploaded_media:
                 self._create_media(treatment, uploaded_media)
             if zone_configs is not None:
-                treatment.zone_configs.all().delete()
-                if zone_configs:
-                    self._save_zone_configs(treatment, zone_configs)
+                self._sync_zone_configs(treatment, zone_configs)
         if ordered_media_ids:
             reorder_gallery(treatment, ordered_media_ids)
         return treatment

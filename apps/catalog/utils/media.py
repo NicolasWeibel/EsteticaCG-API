@@ -54,3 +54,22 @@ def build_media_url(file_field, media_type):
     except Exception:
         pass
     return getattr(file_field, "url", None)
+
+
+def build_video_thumbnail_url(file_field, start_offset="auto"):
+    if not file_field:
+        return None
+    name = getattr(file_field, "name", None)
+    if not name:
+        return None
+    try:
+        url, _ = cloudinary_url(
+            name,
+            resource_type="video",
+            secure=True,
+            format="jpg",
+            transformation=[{"start_offset": start_offset}],
+        )
+        return url
+    except Exception:
+        return None

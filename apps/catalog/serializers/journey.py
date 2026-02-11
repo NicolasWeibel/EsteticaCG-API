@@ -199,10 +199,14 @@ class JourneySerializer(MediaUploadMixin, UUIDSerializer):
 
     def create(self, validated_data):
         uploaded_media = validated_data.pop("uploaded_media", [])
+        removed_ids = validated_data.pop("removed_media_ids", [])
+        ordered_media_ids = validated_data.pop("ordered_media_ids", [])
         media_order = validated_data.pop("media_order", None)
         uploaded_map = self.context.get("uploaded_map", {})
         uploaded_list = self.context.get("uploaded_list", [])
         journey = super().create(validated_data)
+        if removed_ids:
+            journey.media.filter(id__in=removed_ids).delete()
         if media_order is not None:
             self._apply_mixed_order(journey, media_order, uploaded_map, uploaded_list)
         elif uploaded_media:

@@ -43,6 +43,7 @@ class ComboSessionItemSerializer(UUIDSerializer):
         fields = "__all__"
         extra_kwargs = {
             "combo": {"read_only": True},
+            "ingredient": {"required": False},
         }
 
 
@@ -614,9 +615,16 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
         benefits = validated_data.pop("benefits", [])
         recommended_points = validated_data.pop("recommended_points", [])
         faqs = validated_data.pop("faqs", [])
+        benefits_remove_ids = validated_data.pop("benefits_remove_ids", None)
+        recommended_points_remove_ids = validated_data.pop(
+            "recommended_points_remove_ids", None
+        )
+        faqs_remove_ids = validated_data.pop("faqs_remove_ids", None)
         ingredients = validated_data.pop("ingredients", [])
         session_items = validated_data.pop("session_items", None)
         uploaded_media = validated_data.pop("uploaded_media", [])
+        removed_ids = validated_data.pop("removed_media_ids", [])
+        ordered_media_ids = validated_data.pop("ordered_media_ids", [])
         media_order = validated_data.pop("media_order", None)
         uploaded_map = self.context.get("uploaded_map", {})
         uploaded_list = self.context.get("uploaded_list", [])
@@ -646,11 +654,13 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
                 combo,
                 ItemFAQ,
                 faqs,
-                [],
+                faqs_remove_ids,
                 "faqs",
                 ["question", "answer", "order"],
                 True,
             )
+            if removed_ids:
+                combo.media.filter(id__in=removed_ids).delete()
             if media_order is not None:
                 self._apply_mixed_order(combo, media_order, uploaded_map, uploaded_list)
             elif uploaded_media:

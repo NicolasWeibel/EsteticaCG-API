@@ -1,7 +1,7 @@
 # apps/catalog/admin/mixins.py
 from django.utils.html import format_html
 
-from ..utils.media import build_media_url
+from ..utils.media import build_media_url, build_video_thumbnail_url
 
 
 class CloudinaryMediaAdminMixin:
@@ -12,9 +12,16 @@ class CloudinaryMediaAdminMixin:
     def _get_primary_media(self, obj):
         gallery = getattr(obj, "media", None)
         if gallery is not None:
-            first = gallery.first()
-            if first and getattr(first, "media", None):
-                return first.media, getattr(first, "media_type", "image")
+            first_video = None
+            for item in gallery.all():
+                if getattr(item, "media", None) is None:
+                    continue
+                if getattr(item, "media_type", "image") == "image":
+                    return item.media, "image"
+                if first_video is None and getattr(item, "media_type", None) == "video":
+                    first_video = item
+            if first_video and getattr(first_video, "media", None):
+                return first_video.media, "video"
         image_field = getattr(obj, "image", None)
         if image_field:
             return image_field, "image"
@@ -24,6 +31,12 @@ class CloudinaryMediaAdminMixin:
         media_field, media_type = self._get_primary_media(obj)
         if media_field:
             if media_type == "video":
+                thumb = build_video_thumbnail_url(media_field)
+                if thumb:
+                    return format_html(
+                        '<img src="{}" width="50" height="50" style="border-radius: 50%; object-fit: cover;" />',
+                        thumb,
+                    )
                 return format_html(
                     '<span style="font-size: 12px; color: #666;">Video</span>'
                 )
@@ -42,6 +55,12 @@ class CloudinaryMediaAdminMixin:
         media_field, media_type = self._get_primary_media(obj)
         if media_field:
             if media_type == "video":
+                thumb = build_video_thumbnail_url(media_field)
+                if thumb:
+                    return format_html(
+                        '<img src="{}" style="border-radius: 8px; max-width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" />',
+                        thumb,
+                    )
                 return format_html(
                     '<video src="{}" controls muted preload="metadata" style="border-radius: 8px; max-width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"></video>',
                     build_media_url(media_field, media_type),

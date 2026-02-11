@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from ..models import Treatment, Combo, Journey
-from ..utils.media import build_media_url
+from ..utils.media import build_media_url, build_video_thumbnail_url
 from ..services.pricing import (
     price_pair_for_treatment,
     price_pair_for_combo,
@@ -33,7 +33,8 @@ class BaseListItemSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     kind = serializers.CharField()
     slug = serializers.CharField()
-    media = serializers.SerializerMethodField()
+    cover_media = serializers.SerializerMethodField()
+    cover_media_type = serializers.SerializerMethodField()
     media_count = serializers.SerializerMethodField()
     title = serializers.CharField()
     short_description = serializers.CharField()
@@ -46,13 +47,32 @@ class BaseListItemSerializer(serializers.Serializer):
     category = serializers.SerializerMethodField()
     zones = serializers.SerializerMethodField()
 
-    def get_media(self, obj):
+    def _get_cover_media_info(self, obj):
         first = getattr(obj, "media", None)
         if first is not None:
-            media_obj = first.first()
-            if media_obj:
-                return build_media_url(media_obj.media, media_obj.media_type)
-        return None
+            first_video = None
+            for media_obj in first.all():
+                if getattr(media_obj, "media_type", None) == "image":
+                    return build_media_url(media_obj.media, media_obj.media_type), "image"
+                if first_video is None and getattr(media_obj, "media_type", None) == "video":
+                    first_video = media_obj
+            if first_video:
+                thumb = build_video_thumbnail_url(first_video.media)
+                if thumb:
+                    return thumb, "video"
+                return (
+                    build_media_url(first_video.media, first_video.media_type),
+                    "video",
+                )
+        return None, None
+
+    def get_cover_media(self, obj):
+        media_url, _media_type = self._get_cover_media_info(obj)
+        return media_url
+
+    def get_cover_media_type(self, obj):
+        _media_url, media_type = self._get_cover_media_info(obj)
+        return media_type
 
     def get_media_count(self, obj):
         media = getattr(obj, "media", None)
