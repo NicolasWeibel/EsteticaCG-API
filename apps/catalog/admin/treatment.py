@@ -1,6 +1,8 @@
 # apps/catalog/admin/treatment.py
+from django import forms
 from django.contrib import admin
 from django.contrib.contenttypes.admin import GenericTabularInline
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.html import format_html
 
 from ..models import (
@@ -13,7 +15,57 @@ from ..models import (
 )
 from .incompatibility import IncompatibilityInline, IncompatibilityInlineReverse
 from .mixins import CloudinaryMediaAdminMixin  # ?? Importamos
+from ..services.validation import validate_treatment_rules
+from .utils import get_formset_total, is_inline_deleted
 from ..utils.media import build_media_url
+
+
+class TreatmentAdminForm(forms.ModelForm):
+    class Meta:
+        model = Treatment
+        fields = "__all__"
+
+    def clean(self):
+        cleaned = super().clean()
+        if not self.is_bound:
+            return cleaned
+
+        is_active = cleaned.get(
+            "is_active",
+            self.instance.is_active if self.instance else False,
+        )
+        requires_zones = cleaned.get(
+            "requires_zones",
+            self.instance.requires_zones if self.instance else False,
+        )
+
+        zone_prefix = f"{TreatmentZoneConfig._meta.model_name}_set"
+        zone_total = get_formset_total(self.data, zone_prefix)
+        has_zones = False
+        for idx in range(zone_total):
+            if is_inline_deleted(self.data.get(f"{zone_prefix}-{idx}-DELETE")):
+                continue
+            zone_val = self.data.get(f"{zone_prefix}-{idx}-zone")
+            if zone_val:
+                has_zones = True
+                break
+
+        try:
+            validate_treatment_rules(
+                is_active=is_active,
+                requires_zones=requires_zones,
+                has_zones=has_zones,
+            )
+        except DjangoValidationError as exc:
+            if hasattr(exc, "message_dict"):
+                for field, messages in exc.message_dict.items():
+                    target = field if field in self.fields else None
+                    for message in messages:
+                        self.add_error(target, message)
+            else:
+                self.add_error(None, exc)
+
+        return cleaned
 
 
 class TreatmentZoneConfigInline(admin.StackedInline):
@@ -86,6 +138,7 @@ class TreatmentZoneConfigAdmin(admin.ModelAdmin):
 
 @admin.register(Treatment)
 class TreatmentAdmin(CloudinaryMediaAdminMixin, admin.ModelAdmin):
+    form = TreatmentAdminForm
     list_display = (
         "media_preview_list",  # ?? Agregamos foto
         "title",

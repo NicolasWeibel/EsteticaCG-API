@@ -29,7 +29,7 @@ class TreatmentZoneIncompatibility(TimeStampedUUIDModel):
                 fields=["left_tzc", "right_tzc"], name="uq_tzc_incompat_pair"
             ),
             models.CheckConstraint(
-                check=~models.Q(left_tzc=models.F("right_tzc")),
+                condition=~models.Q(left_tzc=models.F("right_tzc")),
                 name="ck_tzc_incompat_not_self",
             ),
         ]

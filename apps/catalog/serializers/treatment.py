@@ -15,6 +15,7 @@ from ..models import (
     ItemFAQ,
 )
 from ..services.pricing import effective_price_for_treatment
+from ..services.validation import validate_treatment_rules
 from ..utils.gallery import reorder_gallery
 from .gallery import TreatmentMediaSerializer
 from .item_content import (
@@ -26,6 +27,7 @@ from .treatmentzoneconfig import TreatmentZoneConfigSerializer
 from .fields import TagListField
 from .base import UUIDSerializer
 from .media import MediaUploadMixin
+from .utils import clean_uploaded_media, parse_json_list
 from ..utils.media import build_media_url
 
 
@@ -79,42 +81,6 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
     class Meta:
         model = Treatment
         fields = "__all__"
-
-    def _parse_zone_configs(self, raw):
-        if raw is None:
-            return None
-        if isinstance(raw, str):
-            try:
-                return json.loads(raw)
-            except Exception as exc:
-                raise ValidationError({"zone_configs": f"JSON inválido: {exc}"})
-        if hasattr(raw, "read"):
-            try:
-                content = raw.read()
-                if hasattr(raw, "seek"):
-                    raw.seek(0)
-                return json.loads(content)
-            except Exception as exc:
-                raise ValidationError({"zone_configs": f"JSON inválido: {exc}"})
-        return raw
-
-    def _parse_json_list(self, raw, field_name):
-        if raw is None:
-            return None
-        if isinstance(raw, str):
-            try:
-                return json.loads(raw)
-            except Exception as exc:
-                raise ValidationError({field_name: f"JSON inválido: {exc}"})
-        if hasattr(raw, "read"):
-            try:
-                content = raw.read()
-                if hasattr(raw, "seek"):
-                    raw.seek(0)
-                return json.loads(content)
-            except Exception as exc:
-                raise ValidationError({field_name: f"JSON inválido: {exc}"})
-        return raw
 
     def _normalize_ordered_list(self, items, field_name, fill_missing_order):
         if items is None:
@@ -224,61 +190,6 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
         if to_update:
             model_cls.objects.bulk_update(to_update, ["order"])
 
-    def _clean_uploaded_media(self, raw):
-        """
-        Acepta solo archivos; si llegan strings/URLs los ignora para evitar
-        que el serializer interprete cada carácter como un item de la lista.
-        """
-        if raw is None:
-            return None
-        if hasattr(raw, "read"):
-            return [raw]
-        if isinstance(raw, str):
-            return []
-        if isinstance(raw, (list, tuple)):
-            return [item for item in raw if hasattr(item, "read")]
-        return []
-
-    def to_internal_value(self, data):
-        mutable = data.copy()
-        if "zone_configs" in mutable:
-            mutable["zone_configs"] = self._parse_zone_configs(
-                mutable.get("zone_configs")
-            )
-        if "benefits" in mutable:
-            mutable["benefits"] = self._parse_json_list(
-                mutable.get("benefits"), "benefits"
-            )
-        if "recommended_points" in mutable:
-            mutable["recommended_points"] = self._parse_json_list(
-                mutable.get("recommended_points"), "recommended_points"
-            )
-        if "faqs" in mutable:
-            mutable["faqs"] = self._parse_json_list(mutable.get("faqs"), "faqs")
-        if "benefits_remove_ids" in mutable:
-            mutable["benefits_remove_ids"] = self._parse_id_list(
-                mutable.get("benefits_remove_ids"), "benefits_remove_ids"
-            )
-        if "recommended_points_remove_ids" in mutable:
-            mutable["recommended_points_remove_ids"] = self._parse_id_list(
-                mutable.get("recommended_points_remove_ids"),
-                "recommended_points_remove_ids",
-            )
-        if "faqs_remove_ids" in mutable:
-            mutable["faqs_remove_ids"] = self._parse_id_list(
-                mutable.get("faqs_remove_ids"), "faqs_remove_ids"
-            )
-        if "uploaded_media" in mutable:
-            cleaned = self._clean_uploaded_media(mutable.get("uploaded_media"))
-            if cleaned is None:
-                mutable.pop("uploaded_media", None)
-            else:
-                if hasattr(mutable, "setlist"):
-                    mutable.setlist("uploaded_media", cleaned)
-                else:
-                    mutable["uploaded_media"] = cleaned
-        return super().to_internal_value(mutable)
-
     def validate(self, attrs):
         if not self.instance or "slug" in attrs:
             slug = attrs.get("slug")
@@ -289,23 +200,25 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
                     {"slug": "El slug ya está en uso por un combo."}
                 )
         zone_configs = attrs.get("zone_configs")
+        is_active = attrs.get(
+            "is_active",
+            self.instance.is_active if self.instance else True,
+        )
         requires_zones = attrs.get(
             "requires_zones",
             self.instance.requires_zones if self.instance else False,
         )
-
-        if requires_zones:
-            has_zones = (
-                bool(zone_configs)
-                if zone_configs is not None
-                else bool(self.instance and self.instance.zone_configs.exists())
-            )
-            if not has_zones:
-                raise serializers.ValidationError(
-                    {
-                        "zone_configs": "Este tratamiento requiere al menos una zona configurada."
-                    }
-                )
+        has_zones = (
+            bool(zone_configs)
+            if zone_configs is not None
+            else bool(self.instance and self.instance.zone_configs.exists())
+        )
+        validate_treatment_rules(
+            is_active=is_active,
+            requires_zones=requires_zones,
+            has_zones=has_zones,
+            error_cls=serializers.ValidationError,
+        )
         return attrs
 
     def get_cover_media(self, obj):
@@ -345,20 +258,6 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
             )
         if to_create:
             TreatmentMedia.objects.bulk_create(to_create)
-
-    def _clean_uploaded_media(self, raw):
-        """
-        Mantiene compatibilidad con el payload actual, pero descarta strings.
-        """
-        if raw is None:
-            return None
-        if hasattr(raw, "read"):
-            return [raw]
-        if isinstance(raw, str):
-            return []
-        if isinstance(raw, (list, tuple)):
-            return [item for item in raw if hasattr(item, "read")]
-        return []
 
     def _parse_zone_configs(self, raw):
         if raw is None:
@@ -434,15 +333,19 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
                 mutable.get("zone_configs")
             )
         if "benefits" in mutable:
-            mutable["benefits"] = self._parse_json_list(
-                mutable.get("benefits"), "benefits"
+            mutable["benefits"] = parse_json_list(
+                mutable.get("benefits"), "benefits", ValidationError
             )
         if "recommended_points" in mutable:
-            mutable["recommended_points"] = self._parse_json_list(
-                mutable.get("recommended_points"), "recommended_points"
+            mutable["recommended_points"] = parse_json_list(
+                mutable.get("recommended_points"),
+                "recommended_points",
+                ValidationError,
             )
         if "faqs" in mutable:
-            mutable["faqs"] = self._parse_json_list(mutable.get("faqs"), "faqs")
+            mutable["faqs"] = parse_json_list(
+                mutable.get("faqs"), "faqs", ValidationError
+            )
         if "benefits_remove_ids" in mutable:
             mutable["benefits_remove_ids"] = self._parse_id_list(
                 mutable.get("benefits_remove_ids"), "benefits_remove_ids"
@@ -457,7 +360,7 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
                 mutable.get("faqs_remove_ids"), "faqs_remove_ids"
             )
         if "uploaded_media" in mutable:
-            cleaned = self._clean_uploaded_media(mutable.get("uploaded_media"))
+            cleaned = clean_uploaded_media(mutable.get("uploaded_media"))
             if cleaned is None:
                 mutable.pop("uploaded_media", None)
             else:

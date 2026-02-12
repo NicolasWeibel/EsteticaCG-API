@@ -285,7 +285,6 @@ try:
         integrations=[DjangoIntegration(), CeleryIntegration()],
         traces_sample_rate=env.float("SENTRY_TRACES_SAMPLE_RATE", default=0.0),
         send_default_pii=False,
-        enable_tracing=env.bool("SENTRY_ENABLE_TRACING", default=False),
     )
 except Exception:
     pass

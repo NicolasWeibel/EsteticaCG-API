@@ -8,6 +8,7 @@ from ..utils.gallery import reorder_gallery
 from .base import UUIDSerializer
 from .gallery import JourneyMediaSerializer
 from .media import MediaUploadMixin
+from .utils import clean_uploaded_media
 from ..utils.media import build_media_url
 
 
@@ -69,22 +70,11 @@ class JourneySerializer(MediaUploadMixin, UUIDSerializer):
         if to_create:
             JourneyMedia.objects.bulk_create(to_create)
 
-    def _clean_uploaded_media(self, raw):
-        if raw is None:
-            return None
-        if hasattr(raw, "read"):
-            return [raw]
-        if isinstance(raw, str):
-            return []
-        if isinstance(raw, (list, tuple)):
-            return [item for item in raw if hasattr(item, "read")]
-        return []
-
     def to_internal_value(self, data):
         mutable = data.copy()
         media_order = mutable.get("media_order")
         if "uploaded_media" in mutable:
-            cleaned = self._clean_uploaded_media(mutable.get("uploaded_media"))
+            cleaned = clean_uploaded_media(mutable.get("uploaded_media"))
             if cleaned is None:
                 mutable.pop("uploaded_media", None)
             else:

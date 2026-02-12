@@ -56,20 +56,20 @@ class TreatmentZoneConfig(TimeStampedUUIDModel):
         unique_together = ("treatment", "zone")
         constraints = [
             models.CheckConstraint(
-                check=models.Q(duration__gt=0), name="ck_tzc_duration_gt_0"
+                condition=models.Q(duration__gt=0), name="ck_tzc_duration_gt_0"
             ),
             models.CheckConstraint(
-                check=models.Q(price__gt=0), name="ck_tzc_price_gt_0"
+                condition=models.Q(price__gt=0), name="ck_tzc_price_gt_0"
             ),
             models.CheckConstraint(
-                check=(
+                condition=(
                     models.Q(promotional_price__isnull=True)
                     | models.Q(promotional_price__gt=0)
                 ),
                 name="ck_tzc_promo_gt_0_or_null",
             ),
             models.CheckConstraint(
-                check=(
+                condition=(
                     models.Q(promotional_price__isnull=True)
                     | models.Q(promotional_price__lt=models.F("price"))
                 ),

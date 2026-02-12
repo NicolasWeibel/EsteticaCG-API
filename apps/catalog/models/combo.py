@@ -18,7 +18,7 @@ class Combo(ItemBase):
         max_digits=10, decimal_places=2, null=True, blank=True
     )
     sessions = models.PositiveSmallIntegerField(
-        default=1, validators=[MinValueValidator(1)]
+        default=1, validators=[MinValueValidator(0)]
     )
     min_session_interval_days = models.PositiveSmallIntegerField(default=0)
     duration = models.PositiveIntegerField(null=True, blank=True)
@@ -29,31 +29,35 @@ class Combo(ItemBase):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                check=models.Q(price__gt=0), name="ck_combo_price_gt_0"
+                condition=models.Q(price__gt=0), name="ck_combo_price_gt_0"
             ),
             models.CheckConstraint(
-                check=(
+                condition=(
                     models.Q(promotional_price__isnull=True)
                     | models.Q(promotional_price__gt=0)
                 ),
                 name="ck_combo_promo_gt_0_or_null",
             ),
             models.CheckConstraint(
-                check=(
+                condition=(
                     models.Q(promotional_price__isnull=True)
                     | models.Q(promotional_price__lt=models.F("price"))
                 ),
                 name="ck_combo_promo_lt_price",
             ),
             models.CheckConstraint(
-                check=models.Q(sessions__gte=1), name="ck_combo_sessions_gte_1"
+                condition=(
+                    models.Q(is_active=True, sessions__gte=1)
+                    | models.Q(is_active=False, sessions__gte=0)
+                ),
+                name="ck_combo_sessions_valid",
             ),
             models.CheckConstraint(
-                check=models.Q(min_session_interval_days__gte=0),
+                condition=models.Q(min_session_interval_days__gte=0),
                 name="ck_combo_min_session_interval_days_gte_0",
             ),
             models.CheckConstraint(
-                check=(
+                condition=(
                     models.Q(duration__isnull=True)
                     | models.Q(duration__gt=0)
                 ),
@@ -137,7 +141,7 @@ class ComboSessionItem(TimeStampedUUIDModel):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                check=models.Q(session_index__gte=1),
+                condition=models.Q(session_index__gte=1),
                 name="ck_combo_session_index_gte_1",
             ),
             models.UniqueConstraint(

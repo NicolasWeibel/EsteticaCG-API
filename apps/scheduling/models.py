@@ -51,7 +51,7 @@ class AvailabilitySlot(models.Model):
         db_table = "availability_slots"
         constraints = [
             models.CheckConstraint(
-                check=models.Q(start_time__lt=models.F("end_time")),
+                condition=models.Q(start_time__lt=models.F("end_time")),
                 name="ck_availability_slot_start_lt_end",
             ),
         ]
@@ -75,7 +75,7 @@ class ScheduleBlock(models.Model):
         db_table = "schedule_blocks"
         constraints = [
             models.CheckConstraint(
-                check=models.Q(start_time__lt=models.F("end_time")),
+                condition=models.Q(start_time__lt=models.F("end_time")),
                 name="ck_schedule_block_start_lt_end",
             ),
         ]

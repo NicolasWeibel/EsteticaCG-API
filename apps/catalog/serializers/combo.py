@@ -15,6 +15,7 @@ from ..models import (
     ItemFAQ,
 )
 from ..services.pricing import effective_price_for_combo
+from ..services.validation import validate_combo_rules
 from ..utils.gallery import reorder_gallery
 from .base import UUIDSerializer
 from .gallery import ComboMediaSerializer
@@ -23,6 +24,7 @@ from .item_content import (
     ItemRecommendedPointSerializer,
     ItemFAQSerializer,
 )
+from .utils import clean_uploaded_media, parse_json_list
 from .media import MediaUploadMixin
 from ..utils.media import build_media_url
 from .fields import TagListField
@@ -107,6 +109,23 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
                 raise serializers.ValidationError(
                     {"slug": "El slug ya está en uso por un tratamiento."}
                 )
+        is_active = attrs.get(
+            "is_active",
+            self.instance.is_active if self.instance else True,
+        )
+        sessions = attrs.get(
+            "sessions",
+            self.instance.sessions if self.instance else Combo._meta.get_field("sessions").default,
+        )
+        session_items = attrs.get("session_items")
+        if sessions == 0:
+            validate_combo_rules(
+                is_active=is_active,
+                sessions=sessions,
+                ingredient_ids=[],
+                session_items=session_items,
+                error_cls=serializers.ValidationError,
+            )
         return attrs
 
     def _save_ingredients(self, combo, ingredients):
@@ -151,35 +170,6 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
             )
         if to_create:
             ComboMedia.objects.bulk_create(to_create)
-
-    def _clean_uploaded_media(self, raw):
-        if raw is None:
-            return None
-        if hasattr(raw, "read"):
-            return [raw]
-        if isinstance(raw, str):
-            return []
-        if isinstance(raw, (list, tuple)):
-            return [item for item in raw if hasattr(item, "read")]
-        return []
-
-    def _parse_json_list(self, raw, field_name):
-        if raw is None:
-            return None
-        if isinstance(raw, str):
-            try:
-                return json.loads(raw)
-            except Exception as exc:
-                raise ValidationError({field_name: f"JSON inválido: {exc}"})
-        if hasattr(raw, "read"):
-            try:
-                content = raw.read()
-                if hasattr(raw, "seek"):
-                    raw.seek(0)
-                return json.loads(content)
-            except Exception as exc:
-                raise ValidationError({field_name: f"JSON inválido: {exc}"})
-        return raw
 
     def _normalize_session_items(self, combo, items):
         if items is None:
@@ -260,67 +250,14 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
         return normalized
 
     def _validate_session_items(self, combo, items):
-        if items is None:
-            raise ValidationError(
-                {"session_items": "session_items es requerido."}
-            )
-
-        total_sessions = combo.sessions or 0
-        if total_sessions <= 0:
-            raise ValidationError({"sessions": "sessions debe ser >= 1."})
-
-        session_counts = {i: 0 for i in range(1, total_sessions + 1)}
-        ingredient_ids = {str(obj.id) for obj in combo.ingredients.all()}
-        if not ingredient_ids:
-            raise ValidationError(
-                {"ingredients": "El combo debe tener al menos un ingrediente."}
-            )
-        used_ingredients = set()
-        seen_pairs = set()
-
-        for item in items:
-            session_index = item.get("session_index")
-            ingredient_id = str(item.get("ingredient"))
-
-            if session_index not in session_counts:
-                raise ValidationError(
-                    {
-                        "session_items": f"session_index inválido: {session_index}."
-                    }
-                )
-            if ingredient_id not in ingredient_ids:
-                raise ValidationError(
-                    {"session_items": "El ingrediente no pertenece al combo."}
-                )
-
-            pair_key = (session_index, ingredient_id)
-            if pair_key in seen_pairs:
-                raise ValidationError(
-                    {
-                        "session_items": "No se permiten ingredientes repetidos en la misma sesión."
-                    }
-                )
-            seen_pairs.add(pair_key)
-            session_counts[session_index] += 1
-            used_ingredients.add(ingredient_id)
-
-        empty_sessions = [idx for idx, count in session_counts.items() if count == 0]
-        if empty_sessions:
-            raise ValidationError(
-                {
-                    "session_items": f"Las sesiones sin ingredientes no están permitidas: {empty_sessions}."
-                }
-            )
-
-        missing_ingredients = sorted(
-            ingredient_ids.difference(used_ingredients)
+        ingredient_ids = combo.ingredients.values_list("id", flat=True)
+        validate_combo_rules(
+            is_active=combo.is_active,
+            sessions=combo.sessions or 0,
+            ingredient_ids=ingredient_ids,
+            session_items=items,
+            error_cls=ValidationError,
         )
-        if missing_ingredients:
-            raise ValidationError(
-                {
-                    "session_items": "Cada ingrediente debe estar en al menos una sesión."
-                }
-            )
 
     def _normalize_ordered_list(self, items, field_name, fill_missing_order):
         if items is None:
@@ -434,8 +371,8 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
         mutable = data.copy()
         media_order = mutable.get("media_order")
         if "session_items" in mutable:
-            mutable["session_items"] = self._parse_json_list(
-                mutable.get("session_items"), "session_items"
+            mutable["session_items"] = parse_json_list(
+                mutable.get("session_items"), "session_items", ValidationError
             )
         if "ingredients" in mutable:
             parsed_ing = self._parse_ingredients(mutable.get("ingredients"))
@@ -444,15 +381,19 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
             else:
                 mutable["ingredients"] = parsed_ing
         if "benefits" in mutable:
-            mutable["benefits"] = self._parse_json_list(
-                mutable.get("benefits"), "benefits"
+            mutable["benefits"] = parse_json_list(
+                mutable.get("benefits"), "benefits", ValidationError
             )
         if "recommended_points" in mutable:
-            mutable["recommended_points"] = self._parse_json_list(
-                mutable.get("recommended_points"), "recommended_points"
+            mutable["recommended_points"] = parse_json_list(
+                mutable.get("recommended_points"),
+                "recommended_points",
+                ValidationError,
             )
         if "faqs" in mutable:
-            mutable["faqs"] = self._parse_json_list(mutable.get("faqs"), "faqs")
+            mutable["faqs"] = parse_json_list(
+                mutable.get("faqs"), "faqs", ValidationError
+            )
         if "benefits_remove_ids" in mutable:
             mutable["benefits_remove_ids"] = self._parse_id_list(
                 mutable.get("benefits_remove_ids"), "benefits_remove_ids"
@@ -467,7 +408,7 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
                 mutable.get("faqs_remove_ids"), "faqs_remove_ids"
             )
         if "uploaded_media" in mutable:
-            cleaned = self._clean_uploaded_media(mutable.get("uploaded_media"))
+            cleaned = clean_uploaded_media(mutable.get("uploaded_media"))
             if cleaned is None:
                 mutable.pop("uploaded_media", None)
             else:
@@ -668,9 +609,8 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
             if ingredients:
                 self._save_ingredients(combo, ingredients)
             if session_items is None:
-                raise ValidationError(
-                    {"session_items": "session_items es requerido."}
-                )
+                self._validate_session_items(combo, None)
+                return combo
             normalized_session_items = self._normalize_session_items(
                 combo, session_items
             )
@@ -739,6 +679,11 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
                 instance.ingredients.all().delete()
                 if ingredients:
                     self._save_ingredients(instance, ingredients)
+                else:
+                    if instance.is_active or instance.sessions != 0:
+                        instance.is_active = False
+                        instance.sessions = 0
+                        instance.save(update_fields=["is_active", "sessions"])
             if session_items is not None:
                 normalized_session_items = self._normalize_session_items(
                     instance, session_items
@@ -752,10 +697,6 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
                     {"session_index": obj.session_index, "ingredient": obj.ingredient_id}
                     for obj in instance.session_items.all()
                 ]
-                if not existing_items:
-                    raise ValidationError(
-                        {"session_items": "session_items es requerido."}
-                    )
                 self._validate_session_items(instance, existing_items)
             if ordered_media_ids:
                 reorder_gallery(combo, ordered_media_ids)
