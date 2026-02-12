@@ -15,7 +15,10 @@ from ..models import (
     ItemFAQ,
 )
 from ..services.pricing import effective_price_for_combo
-from ..services.validation import validate_combo_rules
+from ..services.validation import (
+    validate_combo_rules,
+    validate_combo_treatments_active,
+)
 from ..utils.gallery import reorder_gallery
 from .base import UUIDSerializer
 from .gallery import ComboMediaSerializer
@@ -256,6 +259,14 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
             sessions=combo.sessions or 0,
             ingredient_ids=ingredient_ids,
             session_items=items,
+            error_cls=ValidationError,
+        )
+
+    def _validate_ingredient_treatments_active(self, combo):
+        tzc_ids = combo.ingredients.values_list("treatment_zone_config_id", flat=True)
+        validate_combo_treatments_active(
+            is_active=combo.is_active,
+            treatment_zone_config_ids=tzc_ids,
             error_cls=ValidationError,
         )
 
@@ -608,6 +619,7 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
                 self._create_media(combo, uploaded_media)
             if ingredients:
                 self._save_ingredients(combo, ingredients)
+            self._validate_ingredient_treatments_active(combo)
             if session_items is None:
                 self._validate_session_items(combo, None)
                 return combo
@@ -684,6 +696,7 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
                         instance.is_active = False
                         instance.sessions = 0
                         instance.save(update_fields=["is_active", "sessions"])
+            self._validate_ingredient_treatments_active(instance)
             if session_items is not None:
                 normalized_session_items = self._normalize_session_items(
                     instance, session_items

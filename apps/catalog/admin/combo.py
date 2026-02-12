@@ -15,7 +15,10 @@ from ..models import (
     ItemFAQ,
 )
 from .mixins import CloudinaryMediaAdminMixin
-from ..services.validation import validate_combo_rules
+from ..services.validation import (
+    validate_combo_rules,
+    validate_combo_treatments_active,
+)
 from .utils import get_formset_total, is_inline_deleted
 from ..utils.media import build_media_url
 
@@ -42,6 +45,7 @@ class ComboAdminForm(forms.ModelForm):
         ingredient_prefix = f"{ComboIngredient._meta.model_name}_set"
         ingredient_total = get_formset_total(self.data, ingredient_prefix)
         ingredient_ids = []
+        treatment_zone_config_ids = []
         for idx in range(ingredient_total):
             if is_inline_deleted(self.data.get(f"{ingredient_prefix}-{idx}-DELETE")):
                 continue
@@ -50,6 +54,7 @@ class ComboAdminForm(forms.ModelForm):
             )
             if not tzc_val:
                 continue
+            treatment_zone_config_ids.append(tzc_val)
             ing_id = self.data.get(f"{ingredient_prefix}-{idx}-id")
             if ing_id:
                 ingredient_ids.append(ing_id)
@@ -87,6 +92,20 @@ class ComboAdminForm(forms.ModelForm):
                 sessions=sessions or 0,
                 ingredient_ids=ingredient_ids,
                 session_items=session_items,
+            )
+        except DjangoValidationError as exc:
+            if hasattr(exc, "message_dict"):
+                for field, messages in exc.message_dict.items():
+                    target = field if field in self.fields else None
+                    for message in messages:
+                        self.add_error(target, message)
+            else:
+                self.add_error(None, exc)
+
+        try:
+            validate_combo_treatments_active(
+                is_active=is_active,
+                treatment_zone_config_ids=treatment_zone_config_ids,
             )
         except DjangoValidationError as exc:
             if hasattr(exc, "message_dict"):

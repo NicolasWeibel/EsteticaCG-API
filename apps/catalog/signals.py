@@ -1,6 +1,12 @@
 import threading
 from django.db import transaction
-from django.db.models.signals import post_save, post_delete, pre_delete
+from django.db.models.signals import (
+    m2m_changed,
+    post_delete,
+    post_save,
+    pre_delete,
+    pre_save,
+)
 from django.dispatch import receiver
 import cloudinary.uploader
 
@@ -10,6 +16,7 @@ from .models import (
     TreatmentMedia,
     ComboMedia,
     JourneyMedia,
+    Journey,
     Combo,
     ComboIngredient,
     ComboSessionItem,
@@ -17,6 +24,8 @@ from .models import (
 
 
 _tzc_delete_state = threading.local()
+_addons_state = threading.local()
+_treatment_state = threading.local()
 
 
 def _get_tzc_combo_map():
@@ -25,6 +34,53 @@ def _get_tzc_combo_map():
         combo_map = {}
         _tzc_delete_state.combo_map = combo_map
     return combo_map
+
+
+def _get_addon_map():
+    treatment_map = getattr(_addons_state, "treatment_map", None)
+    if treatment_map is None:
+        treatment_map = {}
+        _addons_state.treatment_map = treatment_map
+    return treatment_map
+
+
+def _get_treatment_active_map():
+    state_map = getattr(_treatment_state, "active_map", None)
+    if state_map is None:
+        state_map = {}
+        _treatment_state.active_map = state_map
+    return state_map
+
+
+def _get_affected_combo_ids_by_treatments(treatment_ids, journey_id=None):
+    ids = [treatment_id for treatment_id in (treatment_ids or []) if treatment_id]
+    if not ids:
+        return set()
+    qs = ComboIngredient.objects.filter(
+        treatment_zone_config__treatment_id__in=ids
+    )
+    if journey_id is not None:
+        qs = qs.filter(combo__journey_id=journey_id)
+    return set(qs.values_list("combo_id", flat=True))
+
+
+def _delete_ingredients_by_treatments(treatment_ids, journey_id=None):
+    ids = [treatment_id for treatment_id in (treatment_ids or []) if treatment_id]
+    if not ids:
+        return
+    qs = ComboIngredient.objects.filter(
+        treatment_zone_config__treatment_id__in=ids
+    )
+    if journey_id is not None:
+        qs = qs.filter(combo__journey_id=journey_id)
+    qs.delete()
+
+
+def _deactivate_combos(combo_ids):
+    ids = [combo_id for combo_id in (combo_ids or []) if combo_id]
+    if not ids:
+        return
+    Combo.objects.filter(id__in=ids).update(is_active=False)
 
 
 @receiver(post_save, sender=TreatmentZoneConfig)
@@ -176,11 +232,67 @@ def capture_combo_ids_for_tzc_delete(sender, instance, **kwargs):
 def deactivate_combos_and_treatment_on_tzc_delete(sender, instance, **kwargs):
     combo_map = _get_tzc_combo_map()
     combo_ids = combo_map.pop(instance.id, None)
-    if combo_ids:
-        Combo.objects.filter(id__in=combo_ids).update(is_active=False)
+    _deactivate_combos(combo_ids)
 
     treatment_id = instance.treatment_id
     if treatment_id and not TreatmentZoneConfig.objects.filter(
         treatment_id=treatment_id
     ).exists():
         Treatment.objects.filter(id=treatment_id).update(is_active=False)
+
+
+@receiver(m2m_changed, sender=Journey.addons.through)
+def handle_journey_addons_remove(
+    sender, instance, action, reverse, pk_set, **kwargs
+):
+    if reverse:
+        return
+    addon_map = _get_addon_map()
+    if action == "pre_clear":
+        addon_map[instance.id] = set(
+            instance.addons.values_list("id", flat=True)
+        )
+        return
+
+    removed_treatment_ids = set()
+    if action == "post_remove":
+        removed_treatment_ids = set(pk_set or [])
+    elif action == "post_clear":
+        removed_treatment_ids = addon_map.pop(instance.id, set())
+
+    if not removed_treatment_ids:
+        return
+
+    combo_ids = _get_affected_combo_ids_by_treatments(
+        removed_treatment_ids,
+        journey_id=instance.id,
+    )
+    _delete_ingredients_by_treatments(
+        removed_treatment_ids,
+        journey_id=instance.id,
+    )
+    _deactivate_combos(combo_ids)
+
+
+@receiver(pre_save, sender=Treatment)
+def capture_previous_treatment_active_state(sender, instance, **kwargs):
+    if not instance.pk:
+        return
+    previous_state = Treatment.objects.filter(id=instance.id).values_list(
+        "is_active", flat=True
+    ).first()
+    state_map = _get_treatment_active_map()
+    state_map[instance.id] = previous_state
+
+
+@receiver(post_save, sender=Treatment)
+def deactivate_combos_on_treatment_deactivation(sender, instance, created, **kwargs):
+    if created:
+        return
+    state_map = _get_treatment_active_map()
+    previous_active = state_map.pop(instance.id, None)
+    if previous_active is not True or instance.is_active:
+        return
+
+    combo_ids = _get_affected_combo_ids_by_treatments([instance.id])
+    _deactivate_combos(combo_ids)

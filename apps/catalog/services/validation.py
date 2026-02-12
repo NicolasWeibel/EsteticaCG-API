@@ -102,3 +102,38 @@ def validate_combo_rules(
         raise error_cls(
             {"session_items": "Cada ingrediente debe estar en al menos una sesión."}
         )
+
+
+def validate_combo_treatments_active(
+    *,
+    is_active,
+    treatment_zone_config_ids,
+    error_cls=DjangoValidationError,
+):
+    if not is_active:
+        return
+
+    tzc_ids = [tzc_id for tzc_id in (treatment_zone_config_ids or []) if tzc_id]
+    if not tzc_ids:
+        return
+
+    from apps.catalog.models import TreatmentZoneConfig
+
+    inactive_titles = sorted(
+        set(
+            TreatmentZoneConfig.objects.filter(id__in=tzc_ids, treatment__is_active=False)
+            .values_list("treatment__title", flat=True)
+        )
+    )
+    if not inactive_titles:
+        return
+
+    titles = ", ".join(inactive_titles)
+    raise error_cls(
+        {
+            "is_active": (
+                "No se puede activar el combo porque tiene tratamientos inactivos: "
+                f"{titles}."
+            )
+        }
+    )

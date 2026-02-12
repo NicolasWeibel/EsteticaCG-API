@@ -205,3 +205,76 @@ def test_api_treatment_rejects_active_without_zone_configs():
     assert resp.data["zone_configs"] == [
         "Este tratamiento requiere al menos una zona configurada."
     ]
+
+
+@pytest.mark.django_db
+def test_api_combo_rejects_active_with_inactive_treatment():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category)
+    treatment.is_active = False
+    treatment.save(update_fields=["is_active"])
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+
+    resp = client.post(
+        "/api/v1/catalog/combos/",
+        {
+            "slug": _uid("combo-slug"),
+            "title": _uid("Combo"),
+            "category": str(category.id),
+            "price": "120.00",
+            "is_active": True,
+            "sessions": 1,
+            "ingredients": [{"treatment_zone_config": str(tzc.id)}],
+            "session_items": [
+                {"session_index": 1, "treatment_zone_config": str(tzc.id)}
+            ],
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert "is_active" in resp.data
+
+
+@pytest.mark.django_db
+def test_api_combo_update_rejects_reactivation_with_inactive_treatment():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category)
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+    combo = Combo.objects.create(
+        category=category,
+        slug=_uid("combo-slug"),
+        title=_uid("Combo"),
+        price=100,
+        is_active=False,
+        sessions=1,
+    )
+    ingredient = combo.ingredients.create(treatment_zone_config=tzc)
+    combo.session_items.create(session_index=1, ingredient=ingredient)
+    treatment.is_active = False
+    treatment.save(update_fields=["is_active"])
+
+    resp = client.patch(
+        f"/api/v1/catalog/combos/{combo.id}/",
+        {"is_active": True},
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert "is_active" in resp.data
