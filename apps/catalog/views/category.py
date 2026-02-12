@@ -24,7 +24,9 @@ class CategoryViewSet(viewsets.ModelViewSet):
         if sort_key not in SORT_OPTIONS:
             sort_key = "price_asc"
 
-        treatments = Treatment.objects.filter(category=category).prefetch_related(
+        treatments = Treatment.objects.filter(
+            category=category, is_active=True
+        ).prefetch_related(
             "media",
             "zone_configs",
             "treatment_types",
@@ -32,7 +34,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
             "intensities",
             "tags",
         )
-        combos = Combo.objects.filter(category=category).prefetch_related(
+        combos = Combo.objects.filter(category=category, is_active=True).prefetch_related(
             "media",
             "ingredients__treatment_zone_config__zone",
             "treatment_types",

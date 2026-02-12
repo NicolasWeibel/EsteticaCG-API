@@ -53,7 +53,9 @@ class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelVie
         if sort_key not in SORT_OPTIONS:
             sort_key = "price_asc"
 
-        treatments = Treatment.objects.filter(journey=journey).prefetch_related(
+        treatments = Treatment.objects.filter(
+            journey=journey, is_active=True
+        ).prefetch_related(
             "media",
             "zone_configs",
             "treatment_types",
@@ -61,7 +63,7 @@ class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelVie
             "intensities",
             "tags",
         )
-        combos = Combo.objects.filter(journey=journey).prefetch_related(
+        combos = Combo.objects.filter(journey=journey, is_active=True).prefetch_related(
             "media",
             "ingredients__treatment_zone_config__zone",
             "treatment_types",

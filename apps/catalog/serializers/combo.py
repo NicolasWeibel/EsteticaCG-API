@@ -15,9 +15,14 @@ from ..models import (
     ItemFAQ,
 )
 from ..services.pricing import effective_price_for_combo
+from ..services.combo_sessions import (
+    prune_session_items_for_sessions,
+    serialize_session_items_for_validation,
+)
 from ..services.validation import (
     validate_combo_rules,
     validate_combo_treatments_active,
+    validate_optional_gt_zero_or_null,
 )
 from ..utils.gallery import reorder_gallery
 from .base import UUIDSerializer
@@ -120,7 +125,16 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
             "sessions",
             self.instance.sessions if self.instance else Combo._meta.get_field("sessions").default,
         )
+        duration = attrs.get(
+            "duration",
+            self.instance.duration if self.instance else None,
+        )
         session_items = attrs.get("session_items")
+        validate_optional_gt_zero_or_null(
+            field_name="duration",
+            value=duration,
+            error_cls=serializers.ValidationError,
+        )
         if sessions == 0:
             validate_combo_rules(
                 is_active=is_active,
@@ -149,6 +163,90 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
         )
         ser.is_valid(raise_exception=True)
         ser.save(combo=combo)
+
+    def _get_tzc_id_from_payload(self, ingredient_payload):
+        tzc_value = ingredient_payload.get("treatment_zone_config")
+        tzc_id = getattr(tzc_value, "id", tzc_value)
+        if not tzc_id:
+            raise ValidationError(
+                {
+                    "ingredients": (
+                        "Cada ingrediente debe incluir treatment_zone_config."
+                    )
+                }
+            )
+        return tzc_id
+
+    def _sync_ingredients(self, combo, ingredients_payload):
+        if ingredients_payload is None:
+            return
+
+        def _invalidate_ingredients_prefetch():
+            if getattr(combo, "_prefetched_objects_cache", None):
+                combo._prefetched_objects_cache.pop("ingredients", None)
+
+        target_tzc_ids = []
+        seen_tzc_ids = set()
+        for ingredient_payload in ingredients_payload:
+            if not isinstance(ingredient_payload, dict):
+                raise ValidationError(
+                    {"ingredients": "Cada ingrediente debe ser un objeto."}
+                )
+            tzc_id = self._get_tzc_id_from_payload(ingredient_payload)
+            tzc_key = str(tzc_id)
+            if tzc_key in seen_tzc_ids:
+                raise ValidationError(
+                    {
+                        "ingredients": (
+                            "No se permiten treatment_zone_config repetidos."
+                        )
+                    }
+                )
+            seen_tzc_ids.add(tzc_key)
+            target_tzc_ids.append(tzc_id)
+
+        if not target_tzc_ids:
+            combo.ingredients.all().delete()
+            _invalidate_ingredients_prefetch()
+            return
+
+        current_tzc_ids = list(
+            combo.ingredients.values_list("treatment_zone_config_id", flat=True)
+        )
+        current_tzc_keys = {str(tzc_id) for tzc_id in current_tzc_ids}
+        target_tzc_keys = {str(tzc_id) for tzc_id in target_tzc_ids}
+
+        to_add = [
+            {"treatment_zone_config": tzc_id}
+            for tzc_id in target_tzc_ids
+            if str(tzc_id) not in current_tzc_keys
+        ]
+        to_remove = [
+            tzc_id for tzc_id in current_tzc_ids if str(tzc_id) not in target_tzc_keys
+        ]
+
+        if to_add:
+            self._save_ingredients(combo, to_add)
+        if to_remove:
+            combo.ingredients.filter(treatment_zone_config_id__in=to_remove).delete()
+        if to_add or to_remove:
+            _invalidate_ingredients_prefetch()
+
+    def _normalize_combo_without_ingredients(self, combo):
+        if combo.ingredients.exists():
+            return
+
+        combo.session_items.all().delete()
+
+        update_fields = []
+        if combo.is_active:
+            combo.is_active = False
+            update_fields.append("is_active")
+        if combo.sessions != 0:
+            combo.sessions = 0
+            update_fields.append("sessions")
+        if update_fields:
+            combo.save(update_fields=update_fields)
 
     def _save_session_items(self, combo, session_items):
         normalized = self._normalize_session_items(combo, session_items)
@@ -633,6 +731,7 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
             return combo
 
     def update(self, instance, validated_data):
+        ingredients_provided = "ingredients" in self.initial_data
         tags = validated_data.pop("tags", None)
         benefits = validated_data.pop("benefits", None)
         recommended_points = validated_data.pop("recommended_points", None)
@@ -643,6 +742,8 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
         )
         faqs_remove_ids = validated_data.pop("faqs_remove_ids", None)
         ingredients = validated_data.pop("ingredients", None)
+        if not ingredients_provided:
+            ingredients = [] if not self.partial else None
         session_items = validated_data.pop("session_items", None)
         uploaded_media = validated_data.pop("uploaded_media", [])
         removed_ids = validated_data.pop("removed_media_ids", [])
@@ -688,14 +789,8 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
             if uploaded_media:
                 self._create_media(combo, uploaded_media)
             if ingredients is not None:
-                instance.ingredients.all().delete()
-                if ingredients:
-                    self._save_ingredients(instance, ingredients)
-                else:
-                    if instance.is_active or instance.sessions != 0:
-                        instance.is_active = False
-                        instance.sessions = 0
-                        instance.save(update_fields=["is_active", "sessions"])
+                self._sync_ingredients(instance, ingredients)
+                self._normalize_combo_without_ingredients(instance)
             self._validate_ingredient_treatments_active(instance)
             if session_items is not None:
                 normalized_session_items = self._normalize_session_items(
@@ -706,10 +801,10 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
                 if normalized_session_items:
                     self._save_session_items(instance, normalized_session_items)
             else:
-                existing_items = [
-                    {"session_index": obj.session_index, "ingredient": obj.ingredient_id}
-                    for obj in instance.session_items.all()
-                ]
+                prune_session_items_for_sessions(instance, instance.sessions)
+                existing_items = serialize_session_items_for_validation(
+                    ComboSessionItem.objects.filter(combo_id=instance.id)
+                )
                 self._validate_session_items(instance, existing_items)
             if ordered_media_ids:
                 reorder_gallery(combo, ordered_media_ids)

@@ -1,6 +1,20 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 
+def validate_optional_gt_zero_or_null(
+    *,
+    field_name,
+    value,
+    error_cls=DjangoValidationError,
+):
+    if value is None:
+        return
+    if value <= 0:
+        raise error_cls(
+            {field_name: f"{field_name} debe ser mayor a 0 o null."}
+        )
+
+
 def validate_treatment_rules(
     *,
     is_active,

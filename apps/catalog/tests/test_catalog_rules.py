@@ -1,9 +1,13 @@
 import uuid
+from types import SimpleNamespace
+from unittest import mock
 
 import pytest
+from django.contrib.admin.sites import AdminSite
 from django.core.exceptions import ValidationError
+from django.test import RequestFactory
 
-from apps.catalog.admin.combo import ComboAdminForm
+from apps.catalog.admin.combo import ComboAdmin, ComboAdminForm
 from apps.catalog.admin.treatment import TreatmentAdminForm
 from apps.catalog.models import (
     Category,
@@ -20,7 +24,12 @@ from apps.catalog.serializers.treatment import TreatmentSerializer
 from apps.catalog.services.validation import (
     validate_combo_rules,
     validate_combo_treatments_active,
+    validate_optional_gt_zero_or_null,
     validate_treatment_rules,
+)
+from apps.catalog.services.combo_sessions import (
+    prune_session_items_for_sessions,
+    serialize_session_items_for_validation,
 )
 
 
@@ -349,6 +358,75 @@ def test_deactivate_treatment_deactivates_related_combos_without_deleting_data()
     assert TreatmentZoneConfig.objects.filter(id=tzc.id).exists() is True
 
 
+@pytest.mark.django_db
+def test_prune_session_items_for_sessions_removes_out_of_range_items():
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category)
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+    combo = _make_combo(category, is_active=False, sessions=4)
+    ingredient = ComboIngredient.objects.create(combo=combo, treatment_zone_config=tzc)
+    item1 = ComboSessionItem.objects.create(
+        combo=combo, session_index=1, ingredient=ingredient
+    )
+    item4 = ComboSessionItem.objects.create(
+        combo=combo, session_index=4, ingredient=ingredient
+    )
+
+    deleted = prune_session_items_for_sessions(combo, sessions=3)
+
+    assert deleted == 1
+    assert ComboSessionItem.objects.filter(id=item1.id).exists() is True
+    assert ComboSessionItem.objects.filter(id=item4.id).exists() is False
+
+
+@pytest.mark.django_db
+def test_prune_session_items_for_sessions_clears_all_when_sessions_zero():
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category)
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+    combo = _make_combo(category, is_active=False, sessions=2)
+    ingredient = ComboIngredient.objects.create(combo=combo, treatment_zone_config=tzc)
+    ComboSessionItem.objects.create(combo=combo, session_index=1, ingredient=ingredient)
+    ComboSessionItem.objects.create(combo=combo, session_index=2, ingredient=ingredient)
+
+    deleted = prune_session_items_for_sessions(combo, sessions=0)
+
+    assert deleted == 2
+    assert combo.session_items.count() == 0
+
+
+@pytest.mark.django_db
+def test_serialize_session_items_for_validation_shape():
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category)
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+    combo = _make_combo(category, is_active=False, sessions=1)
+    ingredient = ComboIngredient.objects.create(combo=combo, treatment_zone_config=tzc)
+    ComboSessionItem.objects.create(combo=combo, session_index=1, ingredient=ingredient)
+
+    serialized = serialize_session_items_for_validation(combo.session_items.all())
+
+    assert serialized == [{"session_index": 1, "ingredient": ingredient.id}]
+
+
 def test_validate_combo_rules_allows_inactive_with_ingredients_and_no_sessions():
     validate_combo_rules(
         is_active=False,
@@ -505,6 +583,19 @@ def test_validate_combo_treatments_active_allows_inactive_combo():
     )
 
 
+def test_validate_optional_gt_zero_or_null_rejects_zero():
+    with pytest.raises(ValidationError):
+        validate_optional_gt_zero_or_null(
+            field_name="duration",
+            value=0,
+        )
+
+
+def test_validate_optional_gt_zero_or_null_allows_null_and_positive():
+    validate_optional_gt_zero_or_null(field_name="duration", value=None)
+    validate_optional_gt_zero_or_null(field_name="duration", value=1)
+
+
 @pytest.mark.django_db
 def test_combo_serializer_rejects_slug_used_by_treatment():
     category = _make_category()
@@ -596,6 +687,56 @@ def _combo_admin_update_payload(combo, ingredient, session_item, *, is_active):
     return payload
 
 
+def _combo_admin_update_payload_with_session_rows(
+    combo,
+    ingredient,
+    *,
+    sessions,
+    is_active,
+    session_rows,
+):
+    payload = {
+        "slug": combo.slug,
+        "title": combo.title,
+        "category": str(combo.category_id),
+        "price": str(combo.price),
+        "sessions": str(sessions),
+        "min_session_interval_days": str(combo.min_session_interval_days),
+        "order": str(combo.order),
+        "comboingredient_set-TOTAL_FORMS": "1",
+        "comboingredient_set-INITIAL_FORMS": "1",
+        "comboingredient_set-MIN_NUM_FORMS": "0",
+        "comboingredient_set-MAX_NUM_FORMS": "1000",
+        "comboingredient_set-0-id": str(ingredient.id),
+        "comboingredient_set-0-combo": str(combo.id),
+        "comboingredient_set-0-treatment_zone_config": str(
+            ingredient.treatment_zone_config_id
+        ),
+        "combosessionitem_set-TOTAL_FORMS": str(len(session_rows)),
+        "combosessionitem_set-INITIAL_FORMS": str(
+            len([row for row in session_rows if row.get("id")])
+        ),
+        "combosessionitem_set-MIN_NUM_FORMS": "0",
+        "combosessionitem_set-MAX_NUM_FORMS": "1000",
+    }
+    if is_active:
+        payload["is_active"] = "on"
+
+    for idx, row in enumerate(session_rows):
+        if row.get("id"):
+            payload[f"combosessionitem_set-{idx}-id"] = str(row["id"])
+        payload[f"combosessionitem_set-{idx}-combo"] = str(combo.id)
+        payload[f"combosessionitem_set-{idx}-session_index"] = str(
+            row["session_index"]
+        )
+        payload[f"combosessionitem_set-{idx}-ingredient"] = str(
+            row.get("ingredient", ingredient.id)
+        )
+        if row.get("delete"):
+            payload[f"combosessionitem_set-{idx}-DELETE"] = "on"
+    return payload
+
+
 @pytest.mark.django_db
 def test_combo_admin_form_rejects_activate_with_inactive_treatment():
     category = _make_category()
@@ -649,6 +790,138 @@ def test_combo_admin_form_allows_inactive_with_inactive_treatment():
     )
 
     assert form.is_valid() is True
+
+
+@pytest.mark.django_db
+def test_combo_admin_form_allows_reduce_sessions_with_legacy_out_of_range_rows():
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category)
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+    combo = _make_combo(category, is_active=False, sessions=4)
+    ingredient = ComboIngredient.objects.create(combo=combo, treatment_zone_config=tzc)
+    s1 = ComboSessionItem.objects.create(combo=combo, session_index=1, ingredient=ingredient)
+    s2 = ComboSessionItem.objects.create(combo=combo, session_index=2, ingredient=ingredient)
+    s3 = ComboSessionItem.objects.create(combo=combo, session_index=3, ingredient=ingredient)
+    s4 = ComboSessionItem.objects.create(combo=combo, session_index=4, ingredient=ingredient)
+
+    form = ComboAdminForm(
+        instance=combo,
+        data=_combo_admin_update_payload_with_session_rows(
+            combo,
+            ingredient,
+            sessions=3,
+            is_active=False,
+            session_rows=[
+                {"id": s1.id, "session_index": 1},
+                {"id": s2.id, "session_index": 2},
+                {"id": s3.id, "session_index": 3},
+                {"id": s4.id, "session_index": 4},
+            ],
+        ),
+    )
+
+    assert form.is_valid() is True
+
+
+@pytest.mark.django_db
+def test_combo_admin_form_rejects_manual_out_of_range_row_on_reduce_sessions():
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category)
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+    combo = _make_combo(category, is_active=False, sessions=4)
+    ingredient = ComboIngredient.objects.create(combo=combo, treatment_zone_config=tzc)
+    s1 = ComboSessionItem.objects.create(combo=combo, session_index=1, ingredient=ingredient)
+    s2 = ComboSessionItem.objects.create(combo=combo, session_index=2, ingredient=ingredient)
+    s3 = ComboSessionItem.objects.create(combo=combo, session_index=3, ingredient=ingredient)
+
+    form = ComboAdminForm(
+        instance=combo,
+        data=_combo_admin_update_payload_with_session_rows(
+            combo,
+            ingredient,
+            sessions=3,
+            is_active=False,
+            session_rows=[
+                {"id": s1.id, "session_index": 1},
+                {"id": s2.id, "session_index": 2},
+                {"id": s3.id, "session_index": 3},
+                {"session_index": 4},
+            ],
+        ),
+    )
+
+    assert form.is_valid() is False
+    assert "__all__" in form.errors
+
+
+@pytest.mark.django_db
+def test_combo_admin_save_related_prunes_session_items_over_sessions():
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category)
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+    combo = _make_combo(category, is_active=False, sessions=3)
+    ingredient = ComboIngredient.objects.create(combo=combo, treatment_zone_config=tzc)
+    ComboSessionItem.objects.create(combo=combo, session_index=1, ingredient=ingredient)
+    ComboSessionItem.objects.create(combo=combo, session_index=4, ingredient=ingredient)
+
+    combo_admin = ComboAdmin(Combo, AdminSite())
+    request = RequestFactory().post("/admin/catalog/combo/")
+    form = SimpleNamespace(instance=combo, save_m2m=lambda: None)
+
+    with mock.patch(
+        "django.contrib.admin.options.ModelAdmin.save_related", autospec=True
+    ) as patched_super:
+        combo_admin.save_related(request, form, [], change=True)
+        patched_super.assert_called_once()
+
+    assert combo.session_items.filter(session_index=4).exists() is False
+    assert combo.session_items.filter(session_index=1).exists() is True
+
+
+@pytest.mark.django_db
+def test_combo_admin_form_rejects_duration_zero():
+    category = _make_category()
+    form = ComboAdminForm(
+        data={
+            "slug": _uid("combo-slug"),
+            "title": _uid("Combo"),
+            "category": str(category.id),
+            "price": "100",
+            "sessions": "0",
+            "duration": "0",
+            "min_session_interval_days": "0",
+            "order": "0",
+            "comboingredient_set-TOTAL_FORMS": "0",
+            "comboingredient_set-INITIAL_FORMS": "0",
+            "comboingredient_set-MIN_NUM_FORMS": "0",
+            "comboingredient_set-MAX_NUM_FORMS": "1000",
+            "combosessionitem_set-TOTAL_FORMS": "0",
+            "combosessionitem_set-INITIAL_FORMS": "0",
+            "combosessionitem_set-MIN_NUM_FORMS": "0",
+            "combosessionitem_set-MAX_NUM_FORMS": "1000",
+        }
+    )
+
+    assert form.is_valid() is False
+    assert "duration" in form.errors
 
 
 @pytest.mark.django_db

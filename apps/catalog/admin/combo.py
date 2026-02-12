@@ -18,7 +18,9 @@ from .mixins import CloudinaryMediaAdminMixin
 from ..services.validation import (
     validate_combo_rules,
     validate_combo_treatments_active,
+    validate_optional_gt_zero_or_null,
 )
+from ..services.combo_sessions import prune_session_items_for_sessions
 from .utils import get_formset_total, is_inline_deleted
 from ..utils.media import build_media_url
 
@@ -40,6 +42,10 @@ class ComboAdminForm(forms.ModelForm):
         sessions = cleaned.get(
             "sessions",
             self.instance.sessions if self.instance else 0,
+        )
+        duration = cleaned.get(
+            "duration",
+            self.instance.duration if self.instance else None,
         )
 
         ingredient_prefix = f"{ComboIngredient._meta.model_name}_set"
@@ -63,10 +69,17 @@ class ComboAdminForm(forms.ModelForm):
 
         session_prefix = f"{ComboSessionItem._meta.model_name}_set"
         session_total = get_formset_total(self.data, session_prefix)
+        existing_session_indices = {}
+        if self.instance and self.instance.pk:
+            existing_session_indices = {
+                str(obj.id): obj.session_index
+                for obj in self.instance.session_items.only("id", "session_index")
+            }
         session_items = []
         for idx in range(session_total):
             if is_inline_deleted(self.data.get(f"{session_prefix}-{idx}-DELETE")):
                 continue
+            row_id = self.data.get(f"{session_prefix}-{idx}-id")
             session_index_raw = self.data.get(
                 f"{session_prefix}-{idx}-session_index"
             )
@@ -79,6 +92,17 @@ class ComboAdminForm(forms.ModelForm):
                 session_index = int(session_index_raw)
             except (TypeError, ValueError):
                 session_index = session_index_raw
+
+            row_id_key = str(row_id) if row_id else None
+            is_legacy_podable = (
+                row_id_key in existing_session_indices
+                and isinstance(session_index, int)
+                and session_index > (sessions or 0)
+                and existing_session_indices[row_id_key] == session_index
+            )
+            if is_legacy_podable:
+                continue
+
             session_items.append(
                 {
                     "session_index": session_index,
@@ -106,6 +130,20 @@ class ComboAdminForm(forms.ModelForm):
             validate_combo_treatments_active(
                 is_active=is_active,
                 treatment_zone_config_ids=treatment_zone_config_ids,
+            )
+        except DjangoValidationError as exc:
+            if hasattr(exc, "message_dict"):
+                for field, messages in exc.message_dict.items():
+                    target = field if field in self.fields else None
+                    for message in messages:
+                        self.add_error(target, message)
+            else:
+                self.add_error(None, exc)
+
+        try:
+            validate_optional_gt_zero_or_null(
+                field_name="duration",
+                value=duration,
             )
         except DjangoValidationError as exc:
             if hasattr(exc, "message_dict"):
@@ -215,3 +253,7 @@ class ComboAdmin(CloudinaryMediaAdminMixin, admin.ModelAdmin):
         "objectives",
         "intensities",
     )
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        prune_session_items_for_sessions(form.instance)

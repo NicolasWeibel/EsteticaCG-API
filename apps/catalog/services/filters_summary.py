@@ -51,11 +51,17 @@ def build_filters_summary(
     categories_qs = Category.objects.all()
 
     if journey:
-        tzc_qs = TreatmentZoneConfig.objects.filter(treatment__journey=journey)
-        combos_qs = Combo.objects.filter(journey=journey)
+        tzc_qs = TreatmentZoneConfig.objects.filter(
+            treatment__journey=journey,
+            treatment__is_active=True,
+        )
+        combos_qs = Combo.objects.filter(journey=journey, is_active=True)
     else:
-        tzc_qs = TreatmentZoneConfig.objects.filter(treatment__category=category)
-        combos_qs = Combo.objects.filter(category=category)
+        tzc_qs = TreatmentZoneConfig.objects.filter(
+            treatment__category=category,
+            treatment__is_active=True,
+        )
+        combos_qs = Combo.objects.filter(category=category, is_active=True)
 
     tzc_aggs = tzc_qs.aggregate(
         min_price=Min(Coalesce("promotional_price", "price")),

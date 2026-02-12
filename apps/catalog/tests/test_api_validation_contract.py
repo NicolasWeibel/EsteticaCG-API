@@ -4,7 +4,14 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
-from apps.catalog.models import Category, Combo, Treatment, TreatmentZoneConfig, Zone
+from apps.catalog.models import (
+    Category,
+    Combo,
+    Journey,
+    Treatment,
+    TreatmentZoneConfig,
+    Zone,
+)
 
 
 def _uid(prefix: str) -> str:
@@ -35,6 +42,27 @@ def _make_treatment(category: Category) -> Treatment:
         slug=_uid("treat-slug"),
         title=_uid("Treatment"),
     )
+
+
+def _make_journey(category: Category) -> Journey:
+    return Journey.objects.create(
+        category=category,
+        slug=_uid("journey-slug"),
+        title=_uid("Journey"),
+    )
+
+
+def _combo_put_payload(combo: Combo, category: Category, **overrides):
+    payload = {
+        "slug": combo.slug,
+        "title": combo.title,
+        "category": str(category.id),
+        "price": str(combo.price),
+        "is_active": combo.is_active,
+        "sessions": combo.sessions,
+    }
+    payload.update(overrides)
+    return payload
 
 
 @pytest.mark.django_db
@@ -94,6 +122,30 @@ def test_api_combo_rejects_session_items_when_sessions_is_zero():
 
     assert resp.status_code == 400
     assert resp.data["session_items"] == ["session_items no es válido si sessions es 0."]
+
+
+@pytest.mark.django_db
+def test_api_combo_rejects_duration_zero():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+
+    resp = client.post(
+        "/api/v1/catalog/combos/",
+        {
+            "slug": _uid("combo-slug"),
+            "title": _uid("Combo"),
+            "category": str(category.id),
+            "price": "120.00",
+            "is_active": False,
+            "sessions": 0,
+            "duration": 0,
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert resp.data["duration"] == ["duration debe ser mayor a 0 o null."]
 
 
 @pytest.mark.django_db
@@ -278,3 +330,572 @@ def test_api_combo_update_rejects_reactivation_with_inactive_treatment():
 
     assert resp.status_code == 400
     assert "is_active" in resp.data
+
+
+@pytest.mark.django_db
+def test_api_combo_update_prunes_items_when_sessions_reduced_without_session_items():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category)
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+    combo = Combo.objects.create(
+        category=category,
+        slug=_uid("combo-slug"),
+        title=_uid("Combo"),
+        price=100,
+        is_active=False,
+        sessions=4,
+    )
+    ingredient = combo.ingredients.create(treatment_zone_config=tzc)
+    combo.session_items.create(session_index=1, ingredient=ingredient)
+    combo.session_items.create(session_index=2, ingredient=ingredient)
+    combo.session_items.create(session_index=3, ingredient=ingredient)
+    combo.session_items.create(session_index=4, ingredient=ingredient)
+
+    resp = client.patch(
+        f"/api/v1/catalog/combos/{combo.id}/",
+        {"sessions": 3},
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    combo.refresh_from_db()
+    assert combo.sessions == 3
+    assert combo.session_items.filter(session_index=4).exists() is False
+    assert combo.session_items.count() == 3
+
+
+@pytest.mark.django_db
+def test_api_combo_update_prunes_all_items_when_sessions_set_to_zero_without_session_items():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category)
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+    combo = Combo.objects.create(
+        category=category,
+        slug=_uid("combo-slug"),
+        title=_uid("Combo"),
+        price=100,
+        is_active=False,
+        sessions=2,
+    )
+    ingredient = combo.ingredients.create(treatment_zone_config=tzc)
+    combo.session_items.create(session_index=1, ingredient=ingredient)
+    combo.session_items.create(session_index=2, ingredient=ingredient)
+
+    resp = client.patch(
+        f"/api/v1/catalog/combos/{combo.id}/",
+        {"sessions": 0},
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    combo.refresh_from_db()
+    assert combo.sessions == 0
+    assert combo.session_items.count() == 0
+
+
+@pytest.mark.django_db
+def test_api_combo_update_rejects_explicit_out_of_range_session_items_when_sessions_reduced():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category)
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+    combo = Combo.objects.create(
+        category=category,
+        slug=_uid("combo-slug"),
+        title=_uid("Combo"),
+        price=100,
+        is_active=False,
+        sessions=4,
+    )
+    ingredient = combo.ingredients.create(treatment_zone_config=tzc)
+    combo.session_items.create(session_index=1, ingredient=ingredient)
+    combo.session_items.create(session_index=2, ingredient=ingredient)
+    combo.session_items.create(session_index=3, ingredient=ingredient)
+    combo.session_items.create(session_index=4, ingredient=ingredient)
+
+    resp = client.patch(
+        f"/api/v1/catalog/combos/{combo.id}/",
+        {
+            "sessions": 3,
+            "session_items": [
+                {"session_index": 1, "treatment_zone_config": str(tzc.id)},
+                {"session_index": 2, "treatment_zone_config": str(tzc.id)},
+                {"session_index": 3, "treatment_zone_config": str(tzc.id)},
+                {"session_index": 4, "treatment_zone_config": str(tzc.id)},
+            ],
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert str(resp.data["session_items"]) == "session_index inválido: 4."
+
+
+@pytest.mark.django_db
+def test_api_combo_update_reducing_sessions_rolls_back_prune_if_ingredient_becomes_orphan():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+    zone_a = _make_zone(category)
+    zone_b = _make_zone(category)
+    treatment_a = _make_treatment(category)
+    treatment_b = _make_treatment(category)
+    tzc_a = TreatmentZoneConfig.objects.create(
+        treatment=treatment_a,
+        zone=zone_a,
+        duration=30,
+        price=100,
+    )
+    tzc_b = TreatmentZoneConfig.objects.create(
+        treatment=treatment_b,
+        zone=zone_b,
+        duration=30,
+        price=120,
+    )
+    combo = Combo.objects.create(
+        category=category,
+        slug=_uid("combo-slug"),
+        title=_uid("Combo"),
+        price=100,
+        is_active=False,
+        sessions=4,
+    )
+    ing_a = combo.ingredients.create(treatment_zone_config=tzc_a)
+    ing_b = combo.ingredients.create(treatment_zone_config=tzc_b)
+    combo.session_items.create(session_index=1, ingredient=ing_a)
+    combo.session_items.create(session_index=2, ingredient=ing_a)
+    combo.session_items.create(session_index=3, ingredient=ing_a)
+    session4 = combo.session_items.create(session_index=4, ingredient=ing_b)
+
+    resp = client.patch(
+        f"/api/v1/catalog/combos/{combo.id}/",
+        {"sessions": 3},
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert (
+        str(resp.data["session_items"])
+        == "Cada ingrediente debe estar en al menos una sesión."
+    )
+    assert combo.session_items.filter(id=session4.id).exists() is True
+
+
+@pytest.mark.django_db
+def test_api_combo_put_without_ingredients_clears_ingredients_sessions_and_items():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category)
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+    combo = Combo.objects.create(
+        category=category,
+        slug=_uid("combo-slug"),
+        title=_uid("Combo"),
+        price=100,
+        is_active=False,
+        sessions=2,
+    )
+    ingredient = combo.ingredients.create(treatment_zone_config=tzc)
+    combo.session_items.create(session_index=1, ingredient=ingredient)
+    combo.session_items.create(session_index=2, ingredient=ingredient)
+
+    payload = _combo_put_payload(combo, category, sessions=2)
+    resp = client.put(
+        f"/api/v1/catalog/combos/{combo.id}/",
+        payload,
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    combo.refresh_from_db()
+    assert combo.is_active is False
+    assert combo.sessions == 0
+    assert combo.ingredients.count() == 0
+    assert combo.session_items.count() == 0
+
+
+@pytest.mark.django_db
+def test_api_combo_patch_without_ingredients_keeps_existing_ingredients():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category)
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+    combo = Combo.objects.create(
+        category=category,
+        slug=_uid("combo-slug"),
+        title=_uid("Combo"),
+        price=100,
+        is_active=False,
+        sessions=1,
+    )
+    ingredient = combo.ingredients.create(treatment_zone_config=tzc)
+    combo.session_items.create(session_index=1, ingredient=ingredient)
+
+    resp = client.patch(
+        f"/api/v1/catalog/combos/{combo.id}/",
+        {"title": _uid("Combo Updated")},
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    combo.refresh_from_db()
+    assert combo.ingredients.count() == 1
+    assert combo.session_items.count() == 1
+
+
+@pytest.mark.django_db
+def test_api_combo_patch_syncs_ingredients_by_difference():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+    zone_a = _make_zone(category)
+    zone_b = _make_zone(category)
+    zone_c = _make_zone(category)
+    treatment_a = _make_treatment(category)
+    treatment_b = _make_treatment(category)
+    treatment_c = _make_treatment(category)
+    tzc_a = TreatmentZoneConfig.objects.create(
+        treatment=treatment_a,
+        zone=zone_a,
+        duration=30,
+        price=100,
+    )
+    tzc_b = TreatmentZoneConfig.objects.create(
+        treatment=treatment_b,
+        zone=zone_b,
+        duration=30,
+        price=100,
+    )
+    tzc_c = TreatmentZoneConfig.objects.create(
+        treatment=treatment_c,
+        zone=zone_c,
+        duration=30,
+        price=100,
+    )
+    combo = Combo.objects.create(
+        category=category,
+        slug=_uid("combo-slug"),
+        title=_uid("Combo"),
+        price=100,
+        is_active=False,
+        sessions=1,
+    )
+    ing_a = combo.ingredients.create(treatment_zone_config=tzc_a)
+    ing_b = combo.ingredients.create(treatment_zone_config=tzc_b)
+    combo.session_items.create(session_index=1, ingredient=ing_a)
+    combo.session_items.create(session_index=1, ingredient=ing_b)
+
+    no_change = client.patch(
+        f"/api/v1/catalog/combos/{combo.id}/",
+        {
+            "ingredients": [
+                {"treatment_zone_config": str(tzc_a.id)},
+                {"treatment_zone_config": str(tzc_b.id)},
+            ],
+            "session_items": [
+                {"session_index": 1, "treatment_zone_config": str(tzc_a.id)},
+                {"session_index": 1, "treatment_zone_config": str(tzc_b.id)},
+            ],
+        },
+        format="json",
+    )
+    assert no_change.status_code == 200
+    combo.refresh_from_db()
+    assert set(
+        combo.ingredients.values_list("treatment_zone_config_id", flat=True)
+    ) == {tzc_a.id, tzc_b.id}
+
+    add_new = client.patch(
+        f"/api/v1/catalog/combos/{combo.id}/",
+        {
+            "ingredients": [
+                {"treatment_zone_config": str(tzc_a.id)},
+                {"treatment_zone_config": str(tzc_b.id)},
+                {"treatment_zone_config": str(tzc_c.id)},
+            ],
+            "session_items": [
+                {"session_index": 1, "treatment_zone_config": str(tzc_a.id)},
+                {"session_index": 1, "treatment_zone_config": str(tzc_b.id)},
+                {"session_index": 1, "treatment_zone_config": str(tzc_c.id)},
+            ],
+        },
+        format="json",
+    )
+    assert add_new.status_code == 200
+    combo.refresh_from_db()
+    assert set(
+        combo.ingredients.values_list("treatment_zone_config_id", flat=True)
+    ) == {tzc_a.id, tzc_b.id, tzc_c.id}
+
+    replace_mix = client.patch(
+        f"/api/v1/catalog/combos/{combo.id}/",
+        {
+            "ingredients": [
+                {"treatment_zone_config": str(tzc_b.id)},
+                {"treatment_zone_config": str(tzc_c.id)},
+            ],
+            "session_items": [
+                {"session_index": 1, "treatment_zone_config": str(tzc_b.id)},
+                {"session_index": 1, "treatment_zone_config": str(tzc_c.id)},
+            ],
+        },
+        format="json",
+    )
+    assert replace_mix.status_code == 200
+    combo.refresh_from_db()
+    assert set(
+        combo.ingredients.values_list("treatment_zone_config_id", flat=True)
+    ) == {tzc_b.id, tzc_c.id}
+
+
+@pytest.mark.django_db
+def test_api_combo_patch_empty_ingredients_clears_sessions_and_items():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category)
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+    combo = Combo.objects.create(
+        category=category,
+        slug=_uid("combo-slug"),
+        title=_uid("Combo"),
+        price=100,
+        is_active=False,
+        sessions=1,
+    )
+    ingredient = combo.ingredients.create(treatment_zone_config=tzc)
+    combo.session_items.create(session_index=1, ingredient=ingredient)
+
+    resp = client.patch(
+        f"/api/v1/catalog/combos/{combo.id}/",
+        {"ingredients": []},
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    combo.refresh_from_db()
+    assert combo.is_active is False
+    assert combo.sessions == 0
+    assert combo.ingredients.count() == 0
+    assert combo.session_items.count() == 0
+
+
+@pytest.mark.django_db
+def test_api_combo_put_same_ingredients_keeps_sessions_and_session_items():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+    zone_a = _make_zone(category)
+    zone_b = _make_zone(category)
+    treatment_a = _make_treatment(category)
+    treatment_b = _make_treatment(category)
+    tzc_a = TreatmentZoneConfig.objects.create(
+        treatment=treatment_a,
+        zone=zone_a,
+        duration=30,
+        price=100,
+    )
+    tzc_b = TreatmentZoneConfig.objects.create(
+        treatment=treatment_b,
+        zone=zone_b,
+        duration=30,
+        price=100,
+    )
+    combo = Combo.objects.create(
+        category=category,
+        slug=_uid("combo-slug"),
+        title=_uid("Combo"),
+        price=100,
+        is_active=False,
+        sessions=2,
+    )
+    ing_a = combo.ingredients.create(treatment_zone_config=tzc_a)
+    ing_b = combo.ingredients.create(treatment_zone_config=tzc_b)
+    combo.session_items.create(session_index=1, ingredient=ing_a)
+    combo.session_items.create(session_index=2, ingredient=ing_b)
+
+    payload = _combo_put_payload(
+        combo,
+        category,
+        sessions=2,
+        ingredients=[
+            {"treatment_zone_config": str(tzc_a.id)},
+            {"treatment_zone_config": str(tzc_b.id)},
+        ],
+        session_items=[
+            {"session_index": 1, "treatment_zone_config": str(tzc_a.id)},
+            {"session_index": 2, "treatment_zone_config": str(tzc_b.id)},
+        ],
+    )
+    resp = client.put(
+        f"/api/v1/catalog/combos/{combo.id}/",
+        payload,
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    combo.refresh_from_db()
+    assert combo.sessions == 2
+    assert combo.is_active is False
+    assert combo.session_items.count() == 2
+
+
+@pytest.mark.django_db
+def test_api_combo_patch_rejects_duplicate_treatment_zone_configs_in_ingredients():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category)
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+    combo = Combo.objects.create(
+        category=category,
+        slug=_uid("combo-slug"),
+        title=_uid("Combo"),
+        price=100,
+        is_active=False,
+        sessions=1,
+    )
+    ingredient = combo.ingredients.create(treatment_zone_config=tzc)
+    combo.session_items.create(session_index=1, ingredient=ingredient)
+
+    resp = client.patch(
+        f"/api/v1/catalog/combos/{combo.id}/",
+        {
+            "ingredients": [
+                {"treatment_zone_config": str(tzc.id)},
+                {"treatment_zone_config": str(tzc.id)},
+            ],
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert str(resp.data["ingredients"]) == "No se permiten treatment_zone_config repetidos."
+
+
+@pytest.mark.django_db
+def test_category_items_excludes_inactive_treatments_and_combos():
+    client = APIClient()
+    category = _make_category()
+    _make_treatment(category)
+    inactive_treatment = _make_treatment(category)
+    inactive_treatment.is_active = False
+    inactive_treatment.save(update_fields=["is_active"])
+
+    Combo.objects.create(
+        category=category,
+        slug=_uid("combo-active"),
+        title=_uid("Combo Active"),
+        price=100,
+        is_active=True,
+        sessions=1,
+    )
+    Combo.objects.create(
+        category=category,
+        slug=_uid("combo-inactive"),
+        title=_uid("Combo Inactive"),
+        price=100,
+        is_active=False,
+        sessions=0,
+    )
+
+    resp = client.get(f"/api/v1/catalog/categories/{category.id}/items/")
+    assert resp.status_code == 200
+    kinds = [item["kind"] for item in resp.data["items"]]
+    assert kinds.count("treatment") == 1
+    assert kinds.count("combo") == 1
+
+
+@pytest.mark.django_db
+def test_journey_items_excludes_inactive_treatments_and_combos():
+    client = APIClient()
+    category = _make_category()
+    journey = _make_journey(category)
+
+    Treatment.objects.create(
+        category=category,
+        journey=journey,
+        slug=_uid("treat-active"),
+        title=_uid("Treat Active"),
+        is_active=True,
+    )
+    Treatment.objects.create(
+        category=category,
+        journey=journey,
+        slug=_uid("treat-inactive"),
+        title=_uid("Treat Inactive"),
+        is_active=False,
+    )
+    Combo.objects.create(
+        category=category,
+        journey=journey,
+        slug=_uid("combo-active"),
+        title=_uid("Combo Active"),
+        price=100,
+        is_active=True,
+        sessions=1,
+    )
+    Combo.objects.create(
+        category=category,
+        journey=journey,
+        slug=_uid("combo-inactive"),
+        title=_uid("Combo Inactive"),
+        price=100,
+        is_active=False,
+        sessions=0,
+    )
+
+    resp = client.get(f"/api/v1/catalog/journeys/{journey.id}/items/")
+    assert resp.status_code == 200
+    kinds = [item["kind"] for item in resp.data["items"]]
+    assert kinds.count("treatment") == 1
+    assert kinds.count("combo") == 1
