@@ -46,6 +46,9 @@ class ComboViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewS
         "category",
         "journey",
         "sessions",
+        "session_freq",
+        "session_interval",
+        "occurrences_per_period",
         "min_session_interval_days",
     ]
     search_fields = ["title", "description"]

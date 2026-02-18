@@ -149,6 +149,106 @@ def test_api_combo_rejects_duration_zero():
 
 
 @pytest.mark.django_db
+def test_api_combo_accepts_recurrence_fields():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+
+    resp = client.post(
+        "/api/v1/catalog/combos/",
+        {
+            "slug": _uid("combo-slug"),
+            "title": _uid("Combo"),
+            "category": str(category.id),
+            "price": "120.00",
+            "is_active": False,
+            "sessions": 0,
+            "session_freq": "month",
+            "session_interval": 2,
+            "occurrences_per_period": 1,
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 201
+    assert resp.data["session_freq"] == "month"
+    assert resp.data["session_interval"] == 2
+    assert resp.data["occurrences_per_period"] == 1
+
+
+@pytest.mark.django_db
+def test_api_combo_rejects_invalid_session_freq():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+
+    resp = client.post(
+        "/api/v1/catalog/combos/",
+        {
+            "slug": _uid("combo-slug"),
+            "title": _uid("Combo"),
+            "category": str(category.id),
+            "price": "120.00",
+            "is_active": False,
+            "sessions": 0,
+            "session_freq": "day",
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert "session_freq" in resp.data
+
+
+@pytest.mark.django_db
+def test_api_combo_rejects_session_interval_zero():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+
+    resp = client.post(
+        "/api/v1/catalog/combos/",
+        {
+            "slug": _uid("combo-slug"),
+            "title": _uid("Combo"),
+            "category": str(category.id),
+            "price": "120.00",
+            "is_active": False,
+            "sessions": 0,
+            "session_interval": 0,
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert "session_interval" in resp.data
+
+
+@pytest.mark.django_db
+def test_api_combo_rejects_occurrences_per_period_zero():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+
+    resp = client.post(
+        "/api/v1/catalog/combos/",
+        {
+            "slug": _uid("combo-slug"),
+            "title": _uid("Combo"),
+            "category": str(category.id),
+            "price": "120.00",
+            "is_active": False,
+            "sessions": 0,
+            "occurrences_per_period": 0,
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert "occurrences_per_period" in resp.data
+
+
+@pytest.mark.django_db
 def test_api_combo_allows_inactive_with_ingredients_and_no_sessions():
     client = APIClient()
     client.force_authenticate(_make_staff())

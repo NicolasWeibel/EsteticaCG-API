@@ -9,6 +9,13 @@ from .base import TimeStampedUUIDModel
 
 
 class Combo(ItemBase):
+    SESSION_FREQ_WEEK = "week"
+    SESSION_FREQ_MONTH = "month"
+    SESSION_FREQ_CHOICES = (
+        (SESSION_FREQ_WEEK, "Week"),
+        (SESSION_FREQ_MONTH, "Month"),
+    )
+
     treatment_types = models.ManyToManyField(TreatmentType, blank=True)
     objectives = models.ManyToManyField(Objective, blank=True)
     intensities = models.ManyToManyField(IntensityLevel, blank=True)
@@ -21,6 +28,19 @@ class Combo(ItemBase):
         default=1, validators=[MinValueValidator(0)]
     )
     min_session_interval_days = models.PositiveSmallIntegerField(default=0)
+    session_freq = models.CharField(
+        max_length=10,
+        choices=SESSION_FREQ_CHOICES,
+        default=SESSION_FREQ_WEEK,
+    )
+    session_interval = models.PositiveSmallIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+    )
+    occurrences_per_period = models.PositiveSmallIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+    )
     duration = models.PositiveIntegerField(null=True, blank=True)
 
     # reglas declarativas opcionales (zonas seleccionables, máximos, etc.)
@@ -55,6 +75,14 @@ class Combo(ItemBase):
             models.CheckConstraint(
                 condition=models.Q(min_session_interval_days__gte=0),
                 name="ck_combo_min_session_interval_days_gte_0",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(session_interval__gte=1),
+                name="ck_combo_session_interval_gte_1",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(occurrences_per_period__gte=1),
+                name="ck_combo_occurrences_per_period_gte_1",
             ),
             models.CheckConstraint(
                 condition=(
