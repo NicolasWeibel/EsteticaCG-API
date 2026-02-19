@@ -26,9 +26,9 @@ from .combo import (
     PublicComboSerializer,
 )
 from .filters import (
-    TreatmentTypeSerializer,
+    TechniqueSerializer,
     ObjectiveSerializer,
-    IntensityLevelSerializer,
+    IntensitySerializer,
     TagSerializer,
 )
 from .ordering import ItemOrderSerializer
@@ -58,9 +58,9 @@ __all__ = [
     "PublicComboSerializer",
     "ComboMediaSerializer",
     # filters
-    "TreatmentTypeSerializer",
+    "TechniqueSerializer",
     "ObjectiveSerializer",
-    "IntensityLevelSerializer",
+    "IntensitySerializer",
     "TagSerializer",
     "ItemOrderSerializer",
     "PlacementSerializer",

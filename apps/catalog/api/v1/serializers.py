@@ -7,7 +7,7 @@ from apps.catalog.serializers import (
     JourneySerializer,
     CategorySerializer,
     ZoneSerializer,
-    TreatmentTypeSerializer,
+    TechniqueSerializer,
     ObjectiveSerializer,
-    IntensityLevelSerializer,
+    IntensitySerializer,
 )

@@ -29,6 +29,7 @@ from .base import UUIDSerializer
 from .media import MediaUploadMixin
 from .utils import clean_uploaded_media, parse_json_list
 from ..utils.media import build_media_url
+from .filters import TechniqueSerializer, ObjectiveSerializer, IntensitySerializer
 
 
 class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
@@ -128,9 +129,7 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
         if items is None:
             return
 
-        normalized = self._normalize_ordered_list(
-            items, field_name, fill_missing_order
-        )
+        normalized = self._normalize_ordered_list(items, field_name, fill_missing_order)
         if not normalized:
             return
 
@@ -236,9 +235,7 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
     def get_duration(self, obj):
         avg_duration = getattr(obj, "avg_duration", None)
         if avg_duration is None:
-            avg_duration = obj.zone_configs.aggregate(
-                avg=Avg("duration")
-            ).get("avg")
+            avg_duration = obj.zone_configs.aggregate(avg=Avg("duration")).get("avg")
         if avg_duration is None:
             return None
         return int(round(avg_duration))
@@ -291,7 +288,9 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
         for item in raw:
             if not isinstance(item, dict):
                 raise ValidationError(
-                    {"media_order": "Cada elemento debe ser un objeto con id o upload_key"}
+                    {
+                        "media_order": "Cada elemento debe ser un objeto con id o upload_key"
+                    }
                 )
             img_id = item.get("id")
             upload_key = item.get("upload_key")
@@ -411,7 +410,9 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
                         file = next(plain_iter)
                     except StopIteration:
                         raise ValidationError(
-                            {"media_order": f"No se encontró archivo para upload_key '{upload_key}'"}
+                            {
+                                "media_order": f"No se encontró archivo para upload_key '{upload_key}'"
+                            }
                         )
                 media_type = self._media_type_for_file(file)
                 new_objs.append(
@@ -424,9 +425,7 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
                 )
 
         # agregar existentes que no se mencionaron, al final
-        tail = [
-            item for item in existing_qs if str(item.id) not in used_ids
-        ]
+        tail = [item for item in existing_qs if str(item.id) not in used_ids]
         order_start = len(media_order)
         for offset, media_obj in enumerate(tail):
             media_obj.order = order_start + offset
@@ -466,7 +465,9 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
 
         for cfg in normalized:
             if not isinstance(cfg, dict):
-                raise ValidationError({"zone_configs": "Cada elemento debe ser un objeto"})
+                raise ValidationError(
+                    {"zone_configs": "Cada elemento debe ser un objeto"}
+                )
 
             item_id = cfg.get("id")
             zone_id = cfg.get("zone")
@@ -491,7 +492,9 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
                 obj = existing_by_id.get(item_key)
                 if not obj:
                     raise ValidationError(
-                        {"zone_configs": f"El id {item_id} no pertenece a este tratamiento"}
+                        {
+                            "zone_configs": f"El id {item_id} no pertenece a este tratamiento"
+                        }
                     )
                 ser = TreatmentZoneConfigSerializer(
                     instance=obj, data=payload, context=self.context
@@ -513,9 +516,7 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
                     seen_ids.add(str(obj.id))
                     continue
 
-            ser = TreatmentZoneConfigSerializer(
-                data=payload, context=self.context
-            )
+            ser = TreatmentZoneConfigSerializer(data=payload, context=self.context)
             ser.is_valid(raise_exception=True)
             ser.save(treatment=treatment)
 
@@ -575,7 +576,9 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
             if removed_ids:
                 treatment.media.filter(id__in=removed_ids).delete()
             if media_order is not None:
-                self._apply_mixed_order(treatment, media_order, uploaded_map, uploaded_list)
+                self._apply_mixed_order(
+                    treatment, media_order, uploaded_map, uploaded_list
+                )
             elif uploaded_media:
                 self._create_media(treatment, uploaded_media)
             if zone_configs:
@@ -633,7 +636,9 @@ class TreatmentSerializer(MediaUploadMixin, UUIDSerializer):
             if removed_ids:
                 treatment.media.filter(id__in=removed_ids).delete()
             if media_order is not None:
-                self._apply_mixed_order(treatment, media_order, uploaded_map, uploaded_list)
+                self._apply_mixed_order(
+                    treatment, media_order, uploaded_map, uploaded_list
+                )
             elif uploaded_media:
                 self._create_media(treatment, uploaded_media)
             if zone_configs is not None:
@@ -647,6 +652,9 @@ class PublicTreatmentSerializer(TreatmentSerializer):
     category = serializers.SerializerMethodField()
     journey = serializers.SerializerMethodField()
     zone_configs = serializers.SerializerMethodField()
+    techniques = TechniqueSerializer(many=True, read_only=True)
+    objectives = ObjectiveSerializer(many=True, read_only=True)
+    intensities = IntensitySerializer(many=True, read_only=True)
 
     class Meta:
         model = Treatment
@@ -664,7 +672,7 @@ class PublicTreatmentSerializer(TreatmentSerializer):
             "category",
             "journey",
             "tags",
-            "treatment_types",
+            "techniques",
             "objectives",
             "intensities",
             "requires_zones",
@@ -717,4 +725,3 @@ class PublicTreatmentZoneConfigSerializer(UUIDSerializer):
         if not zone:
             return None
         return zone.name
-

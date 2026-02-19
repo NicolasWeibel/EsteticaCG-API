@@ -8,17 +8,16 @@ from ..models import (
     Journey,
     Objective,
     Zone,
-    TreatmentType,
-    IntensityLevel,
+    Technique,
+    Intensity,
     TreatmentZoneConfig,
     Combo,
 )
 from ..serializers import (
     ObjectiveSerializer,
     ZoneSerializer,
-    TreatmentTypeSerializer,
-    IntensityLevelSerializer,
-    CategorySerializer,
+    TechniqueSerializer,
+    IntensitySerializer,
 )
 
 
@@ -45,10 +44,9 @@ def build_filters_summary(
 
     objectives_qs = Objective.objects.filter(category=category)
     zones_qs = Zone.objects.filter(category=category)
-    treatment_types_qs = TreatmentType.objects.all()
-    intensities_qs = IntensityLevel.objects.all()
+    techniques_qs = Technique.objects.filter(category=category)
+    intensities_qs = Intensity.objects.filter(category=category)
     journeys_qs = Journey.objects.filter(category=category)
-    categories_qs = Category.objects.all()
 
     if journey:
         tzc_qs = TreatmentZoneConfig.objects.filter(
@@ -92,12 +90,6 @@ def build_filters_summary(
                 {"id": "journey", "name": "Jornadas"},
             ],
         },
-        "categories": {
-            "title": "Categoría",
-            "filter_type": "scalar",
-            "field": "category_id",
-            "options": CategorySerializer(categories_qs, many=True).data,
-        },
         "zones": {
             "title": "Zona del Cuerpo",
             "filter_type": "array",
@@ -105,12 +97,12 @@ def build_filters_summary(
             "mode": "any",
             "options": ZoneSerializer(zones_qs, many=True).data,
         },
-        "treatment_types": {
-            "title": "Tipo de Tratamiento",
+        "techniques": {
+            "title": "Tipo de Técnica",
             "filter_type": "array",
-            "field": "treatment_type_ids",
+            "field": "technique_ids",
             "mode": "any",
-            "options": TreatmentTypeSerializer(treatment_types_qs, many=True).data,
+            "options": TechniqueSerializer(techniques_qs, many=True).data,
         },
         "objectives": {
             "title": "Objetivos",
@@ -124,7 +116,7 @@ def build_filters_summary(
             "filter_type": "array",
             "field": "intensity_ids",
             "mode": "any",
-            "options": IntensityLevelSerializer(intensities_qs, many=True).data,
+            "options": IntensitySerializer(intensities_qs, many=True).data,
         },
         "durations": {
             "title": "Duración",

@@ -3,14 +3,14 @@ from django.db import models
 from django.db.models.signals import m2m_changed
 from django.dispatch import receiver
 from .item_base import ItemBase
-from .filters import TreatmentType, Objective, IntensityLevel
+from .filters import Technique, Objective, Intensity
 from .base import TimeStampedUUIDModel
 
 
 class Treatment(ItemBase):
-    treatment_types = models.ManyToManyField(TreatmentType, blank=True)
+    techniques = models.ManyToManyField(Technique, blank=True)
     objectives = models.ManyToManyField(Objective, blank=True)
-    intensities = models.ManyToManyField(IntensityLevel, blank=True)
+    intensities = models.ManyToManyField(Intensity, blank=True)
     # Un treatment por defecto requiere seleccionar zonas
     requires_zones = models.BooleanField(default=True)
 

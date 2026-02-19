@@ -36,6 +36,7 @@ from .utils import clean_uploaded_media, parse_json_list
 from .media import MediaUploadMixin
 from ..utils.media import build_media_url
 from .fields import TagListField
+from .filters import TechniqueSerializer, ObjectiveSerializer, IntensitySerializer
 
 
 class ComboIngredientSerializer(UUIDSerializer):
@@ -123,7 +124,11 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
         )
         sessions = attrs.get(
             "sessions",
-            self.instance.sessions if self.instance else Combo._meta.get_field("sessions").default,
+            (
+                self.instance.sessions
+                if self.instance
+                else Combo._meta.get_field("sessions").default
+            ),
         )
         duration = attrs.get(
             "duration",
@@ -196,11 +201,7 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
             tzc_key = str(tzc_id)
             if tzc_key in seen_tzc_ids:
                 raise ValidationError(
-                    {
-                        "ingredients": (
-                            "No se permiten treatment_zone_config repetidos."
-                        )
-                    }
+                    {"ingredients": ("No se permiten treatment_zone_config repetidos.")}
                 )
             seen_tzc_ids.add(tzc_key)
             target_tzc_ids.append(tzc_id)
@@ -280,8 +281,7 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
 
         ingredient_map = {str(obj.id): obj for obj in combo.ingredients.all()}
         tzc_map = {
-            str(obj.treatment_zone_config_id): obj
-            for obj in combo.ingredients.all()
+            str(obj.treatment_zone_config_id): obj for obj in combo.ingredients.all()
         }
 
         normalized = []
@@ -321,11 +321,7 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
                 session_index = int(session_index)
             except (TypeError, ValueError):
                 raise ValidationError(
-                    {
-                        "session_items": (
-                            "session_index debe ser un número válido."
-                        )
-                    }
+                    {"session_items": ("session_index debe ser un número válido.")}
                 )
 
             ingredient = None
@@ -335,11 +331,7 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
                 ingredient = tzc_map.get(str(tzc_id))
             if not ingredient:
                 raise ValidationError(
-                    {
-                        "session_items": (
-                            "El ingrediente no pertenece al combo."
-                        )
-                    }
+                    {"session_items": ("El ingrediente no pertenece al combo.")}
                 )
 
             normalized.append(
@@ -414,9 +406,7 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
         if items is None:
             return
 
-        normalized = self._normalize_ordered_list(
-            items, field_name, fill_missing_order
-        )
+        normalized = self._normalize_ordered_list(items, field_name, fill_missing_order)
         if not normalized:
             return
 
@@ -551,7 +541,9 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
         for item in raw:
             if not isinstance(item, dict):
                 raise ValidationError(
-                    {"media_order": "Cada elemento debe ser un objeto con id o upload_key"}
+                    {
+                        "media_order": "Cada elemento debe ser un objeto con id o upload_key"
+                    }
                 )
             img_id = item.get("id")
             upload_key = item.get("upload_key")
@@ -625,7 +617,9 @@ class ComboSerializer(MediaUploadMixin, UUIDSerializer):
                         file = next(plain_iter)
                     except StopIteration:
                         raise ValidationError(
-                            {"media_order": f"No se encontró archivo para upload_key '{upload_key}'"}
+                            {
+                                "media_order": f"No se encontró archivo para upload_key '{upload_key}'"
+                            }
                         )
                 media_type = self._media_type_for_file(file)
                 new_objs.append(
@@ -816,6 +810,9 @@ class PublicComboSerializer(ComboSerializer):
     journey = serializers.SerializerMethodField()
     ingredients = serializers.SerializerMethodField()
     zones = serializers.SerializerMethodField()
+    techniques = TechniqueSerializer(many=True, read_only=True)
+    objectives = ObjectiveSerializer(many=True, read_only=True)
+    intensities = IntensitySerializer(many=True, read_only=True)
 
     class Meta:
         model = Combo
@@ -833,7 +830,7 @@ class PublicComboSerializer(ComboSerializer):
             "category",
             "journey",
             "tags",
-            "treatment_types",
+            "techniques",
             "objectives",
             "intensities",
             "price",
@@ -909,4 +906,3 @@ class PublicComboSerializer(ComboSerializer):
             if zid not in zones_map:
                 zones_map[zid] = {"id": zone.id, "name": zone.name}
         return list(zones_map.values())
-

@@ -153,7 +153,7 @@ class TreatmentAdmin(CloudinaryMediaAdminMixin, admin.ModelAdmin):
     list_filter = (
         "category",
         "journey",
-        "treatment_types",
+        "techniques",
         "intensities",
         "is_active",
         "is_featured",
@@ -173,7 +173,7 @@ class TreatmentAdmin(CloudinaryMediaAdminMixin, admin.ModelAdmin):
     autocomplete_fields = (
         "category",
         "journey",
-        "treatment_types",
+        "techniques",
         "objectives",
         "intensities",
         "tags",

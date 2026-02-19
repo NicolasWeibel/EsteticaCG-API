@@ -2,21 +2,28 @@ from rest_framework import viewsets
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from ..models import TreatmentType, Objective, IntensityLevel, Tag, Category, Journey
+from ..models import Technique, Objective, Intensity, Tag, Category, Journey
 from ..serializers import (
-    TreatmentTypeSerializer,
+    TechniqueSerializer,
     ObjectiveSerializer,
-    IntensityLevelSerializer,
+    IntensitySerializer,
     TagSerializer,
 )
 from ..permissions import IsAdminOrReadOnly
 from ..services.filters_summary import build_filters_summary
 
 
-class TreatmentTypeViewSet(viewsets.ModelViewSet):
-    queryset = TreatmentType.objects.all()
-    serializer_class = TreatmentTypeSerializer
+class TechniqueViewSet(viewsets.ModelViewSet):
+    queryset = Technique.objects.all()
+    serializer_class = TechniqueSerializer
     permission_classes = [IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        category_id = self.request.query_params.get("category")
+        if category_id:
+            qs = qs.filter(category_id=category_id)
+        return qs
 
 
 class ObjectiveViewSet(viewsets.ModelViewSet):
@@ -32,11 +39,17 @@ class ObjectiveViewSet(viewsets.ModelViewSet):
         return qs
 
 
-class IntensityLevelViewSet(viewsets.ModelViewSet):
-    queryset = IntensityLevel.objects.all()
-    serializer_class = IntensityLevelSerializer
+class IntensityViewSet(viewsets.ModelViewSet):
+    queryset = Intensity.objects.all()
+    serializer_class = IntensitySerializer
     permission_classes = [IsAdminOrReadOnly]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        category_id = self.request.query_params.get("category")
+        if category_id:
+            qs = qs.filter(category_id=category_id)
+        return qs
 
 class TagViewSet(viewsets.ModelViewSet):
     queryset = Tag.objects.all().order_by("name")

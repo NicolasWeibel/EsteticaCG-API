@@ -4,7 +4,7 @@ from django.db import models
 from django.db.models.signals import m2m_changed
 from django.dispatch import receiver
 from .item_base import ItemBase
-from .filters import TreatmentType, Objective, IntensityLevel
+from .filters import Technique, Objective, Intensity
 from .base import TimeStampedUUIDModel
 
 
@@ -16,9 +16,9 @@ class Combo(ItemBase):
         (SESSION_FREQ_MONTH, "Month"),
     )
 
-    treatment_types = models.ManyToManyField(TreatmentType, blank=True)
+    techniques = models.ManyToManyField(Technique, blank=True)
     objectives = models.ManyToManyField(Objective, blank=True)
-    intensities = models.ManyToManyField(IntensityLevel, blank=True)
+    intensities = models.ManyToManyField(Intensity, blank=True)
     # precios del combo en sí:
     price = models.DecimalField(max_digits=10, decimal_places=2)
     promotional_price = models.DecimalField(
@@ -85,17 +85,16 @@ class Combo(ItemBase):
                 name="ck_combo_occurrences_per_period_gte_1",
             ),
             models.CheckConstraint(
-                condition=(
-                    models.Q(duration__isnull=True)
-                    | models.Q(duration__gt=0)
-                ),
+                condition=(models.Q(duration__isnull=True) | models.Q(duration__gt=0)),
                 name="ck_combo_duration_gt_0_or_null",
             ),
         ]
 
 
 @receiver(m2m_changed, sender=Combo.objectives.through)
-def validate_combo_objectives(sender, instance, action, reverse, model, pk_set, **kwargs):
+def validate_combo_objectives(
+    sender, instance, action, reverse, model, pk_set, **kwargs
+):
     if action not in ("pre_add", "pre_set") or reverse:
         return
     if not pk_set:

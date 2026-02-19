@@ -16,9 +16,9 @@ from apps.catalog.views.zone import ZoneViewSet
 from apps.catalog.views.treatmentzoneconfig import TreatmentZoneConfigViewSet
 from apps.catalog.views.incompatibility import TreatmentZoneIncompatibilityViewSet
 from apps.catalog.views.filters import (
-    TreatmentTypeViewSet,
+    TechniqueViewSet,
     ObjectiveViewSet,
-    IntensityLevelViewSet,
+    IntensityViewSet,
     TagViewSet,
     FiltersSummaryView,
 )
@@ -39,9 +39,9 @@ router.register(r"zone-configs", TreatmentZoneConfigViewSet)
 router.register(r"incompatibilities", TreatmentZoneIncompatibilityViewSet)
 
 # Filtros
-router.register(r"filters/treatment-type", TreatmentTypeViewSet)
+router.register(r"filters/techniques", TechniqueViewSet)
 router.register(r"filters/objectives", ObjectiveViewSet)
-router.register(r"filters/intensities", IntensityLevelViewSet)
+router.register(r"filters/intensities", IntensityViewSet)
 router.register(r"filters/tags", TagViewSet)
 
 urlpatterns = router.urls + [

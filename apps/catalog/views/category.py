@@ -29,15 +29,17 @@ class CategoryViewSet(viewsets.ModelViewSet):
         ).prefetch_related(
             "media",
             "zone_configs",
-            "treatment_types",
+            "techniques",
             "objectives",
             "intensities",
             "tags",
         )
-        combos = Combo.objects.filter(category=category, is_active=True).prefetch_related(
+        combos = Combo.objects.filter(
+            category=category, is_active=True
+        ).prefetch_related(
             "media",
             "ingredients__treatment_zone_config__zone",
-            "treatment_types",
+            "techniques",
             "objectives",
             "intensities",
             "tags",
@@ -46,14 +48,14 @@ class CategoryViewSet(viewsets.ModelViewSet):
             "media",
             "treatments__zone_configs",
             "treatments__media",
-            "treatments__treatment_types",
+            "treatments__techniques",
             "treatments__objectives",
             "treatments__intensities",
             "treatments__tags",
             "combos",
             "combos__media",
             "combos__ingredients__treatment_zone_config__zone",
-            "combos__treatment_types",
+            "combos__techniques",
             "combos__objectives",
             "combos__intensities",
             "combos__tags",

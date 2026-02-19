@@ -6,7 +6,11 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from ..models import Journey, Treatment, Combo, ItemOrder
-from ..serializers import JourneySerializer, PublicJourneySerializer, JourneyMediaSerializer
+from ..serializers import (
+    JourneySerializer,
+    PublicJourneySerializer,
+    JourneyMediaSerializer,
+)
 from ..permissions import IsAdminOrReadOnly
 from .mixins import GalleryOrderingMixin, MultipartJsonMixin
 from ..services.listing import SORT_OPTIONS, sort_items, serialize_items
@@ -58,7 +62,7 @@ class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelVie
         ).prefetch_related(
             "media",
             "zone_configs",
-            "treatment_types",
+            "techniques",
             "objectives",
             "intensities",
             "tags",
@@ -66,7 +70,7 @@ class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelVie
         combos = Combo.objects.filter(journey=journey, is_active=True).prefetch_related(
             "media",
             "ingredients__treatment_zone_config__zone",
-            "treatment_types",
+            "techniques",
             "objectives",
             "intensities",
             "tags",

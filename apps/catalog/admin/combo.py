@@ -55,9 +55,7 @@ class ComboAdminForm(forms.ModelForm):
         for idx in range(ingredient_total):
             if is_inline_deleted(self.data.get(f"{ingredient_prefix}-{idx}-DELETE")):
                 continue
-            tzc_val = self.data.get(
-                f"{ingredient_prefix}-{idx}-treatment_zone_config"
-            )
+            tzc_val = self.data.get(f"{ingredient_prefix}-{idx}-treatment_zone_config")
             if not tzc_val:
                 continue
             treatment_zone_config_ids.append(tzc_val)
@@ -80,12 +78,8 @@ class ComboAdminForm(forms.ModelForm):
             if is_inline_deleted(self.data.get(f"{session_prefix}-{idx}-DELETE")):
                 continue
             row_id = self.data.get(f"{session_prefix}-{idx}-id")
-            session_index_raw = self.data.get(
-                f"{session_prefix}-{idx}-session_index"
-            )
-            ingredient_raw = self.data.get(
-                f"{session_prefix}-{idx}-ingredient"
-            )
+            session_index_raw = self.data.get(f"{session_prefix}-{idx}-session_index")
+            ingredient_raw = self.data.get(f"{session_prefix}-{idx}-ingredient")
             if not session_index_raw and not ingredient_raw:
                 continue
             try:
@@ -252,7 +246,7 @@ class ComboAdmin(CloudinaryMediaAdminMixin, admin.ModelAdmin):
         "category",
         "journey",
         "tags",
-        "treatment_types",
+        "techniques",
         "objectives",
         "intensities",
     )

@@ -1,13 +1,15 @@
 # apps/catalog/admin/filters.py
 from django.contrib import admin
-from ..models import TreatmentType, Objective, IntensityLevel, Tag
+from ..models import Technique, Objective, Intensity, Tag
 from .mixins import CloudinaryMediaAdminMixin
 
 
-@admin.register(TreatmentType)
-class TreatmentTypeAdmin(admin.ModelAdmin):
-    list_display = ("name",)
+@admin.register(Technique)
+class TechniqueAdmin(admin.ModelAdmin):
+    list_display = ("name", "category")
     search_fields = ("name",)
+    list_filter = ("category",)
+    autocomplete_fields = ("category",)
 
 
 @admin.register(Objective)
@@ -19,10 +21,12 @@ class ObjectiveAdmin(CloudinaryMediaAdminMixin, admin.ModelAdmin):
     autocomplete_fields = ("category",)
 
 
-@admin.register(IntensityLevel)
-class IntensityLevelAdmin(admin.ModelAdmin):
-    list_display = ("name",)
+@admin.register(Intensity)
+class IntensityAdmin(admin.ModelAdmin):
+    list_display = ("name", "category")
     search_fields = ("name",)
+    list_filter = ("category",)
+    autocomplete_fields = ("category",)
 
 
 @admin.register(Tag)

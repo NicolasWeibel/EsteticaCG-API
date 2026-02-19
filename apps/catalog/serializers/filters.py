@@ -1,15 +1,15 @@
 from ..models import (
-    TreatmentType,
+    Technique,
     Objective,
-    IntensityLevel,
+    Intensity,
     Tag,
 )
 from .base import UUIDSerializer
 
 
-class TreatmentTypeSerializer(UUIDSerializer):
+class TechniqueSerializer(UUIDSerializer):
     class Meta:
-        model = TreatmentType
+        model = Technique
         fields = "__all__"
 
 
@@ -19,9 +19,9 @@ class ObjectiveSerializer(UUIDSerializer):
         fields = "__all__"
 
 
-class IntensityLevelSerializer(UUIDSerializer):
+class IntensitySerializer(UUIDSerializer):
     class Meta:
-        model = IntensityLevel
+        model = Intensity
         fields = "__all__"
 
 

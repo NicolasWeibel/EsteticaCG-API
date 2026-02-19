@@ -53,8 +53,14 @@ class BaseListItemSerializer(serializers.Serializer):
             first_video = None
             for media_obj in first.all():
                 if getattr(media_obj, "media_type", None) == "image":
-                    return build_media_url(media_obj.media, media_obj.media_type), "image"
-                if first_video is None and getattr(media_obj, "media_type", None) == "video":
+                    return (
+                        build_media_url(media_obj.media, media_obj.media_type),
+                        "image",
+                    )
+                if (
+                    first_video is None
+                    and getattr(media_obj, "media_type", None) == "video"
+                ):
                     first_video = media_obj
             if first_video:
                 thumb = build_video_thumbnail_url(first_video.media)
@@ -82,17 +88,19 @@ class BaseListItemSerializer(serializers.Serializer):
 
     def get_filters(self, obj):
         data = {
-            "treatment_types": [],
+            "techniques": [],
             "objectives": [],
             "intensities": [],
             "tags": [],
         }
-        if hasattr(obj, "treatment_types"):
-            data["treatment_types"] = FilterItemSerializer(
-                obj.treatment_types.all(), many=True
+        if hasattr(obj, "techniques"):
+            data["techniques"] = FilterItemSerializer(
+                obj.techniques.all(), many=True
             ).data
         if hasattr(obj, "objectives"):
-            data["objectives"] = FilterItemSerializer(obj.objectives.all(), many=True).data
+            data["objectives"] = FilterItemSerializer(
+                obj.objectives.all(), many=True
+            ).data
         if hasattr(obj, "intensities"):
             data["intensities"] = FilterItemSerializer(
                 obj.intensities.all(), many=True
