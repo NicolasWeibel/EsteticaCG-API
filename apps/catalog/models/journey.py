@@ -2,6 +2,7 @@
 
 from django.db import models
 from django.db.models.signals import m2m_changed
+from django.contrib.contenttypes.fields import GenericRelation
 from django.dispatch import receiver
 from django.core.exceptions import ValidationError
 from .base import TimeStampedUUIDModel
@@ -26,6 +27,17 @@ class Journey(TimeStampedUUIDModel):
     short_description = models.CharField(max_length=255, blank=True)
     seo_title = models.CharField(max_length=70, blank=True)
     seo_description = models.CharField(max_length=160, blank=True)
+    recommended_description = models.TextField(blank=True)
+    benefits_image = models.ImageField(
+        upload_to="catalog/journeys/benefits/",
+        blank=True,
+        null=True,
+    )
+    recommended_image = models.ImageField(
+        upload_to="catalog/journeys/recommended/",
+        blank=True,
+        null=True,
+    )
     category = models.ForeignKey(
         Category, on_delete=models.CASCADE, related_name="journeys"
     )
@@ -39,6 +51,11 @@ class Journey(TimeStampedUUIDModel):
         related_name="addon_in_journeys",
         blank=True,  # ✅ string ref
     )
+    benefits = GenericRelation("catalog.ItemBenefit", related_query_name="journey")
+    recommended_points = GenericRelation(
+        "catalog.ItemRecommendedPoint", related_query_name="journey"
+    )
+    faqs = GenericRelation("catalog.ItemFAQ", related_query_name="journey")
 
     def clean(self):
         super().clean()

@@ -29,6 +29,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
         ).prefetch_related(
             "media",
             "zone_configs",
+            "zone_configs__zone",
             "techniques",
             "objectives",
             "intensities",
@@ -47,18 +48,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
         journeys = Journey.objects.filter(category=category).prefetch_related(
             "media",
             "treatments__zone_configs",
-            "treatments__media",
-            "treatments__techniques",
-            "treatments__objectives",
-            "treatments__intensities",
-            "treatments__tags",
             "combos",
-            "combos__media",
-            "combos__ingredients__treatment_zone_config__zone",
-            "combos__techniques",
-            "combos__objectives",
-            "combos__intensities",
-            "combos__tags",
         )
 
         orders = ItemOrder.objects.filter(

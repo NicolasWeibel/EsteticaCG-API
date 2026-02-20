@@ -7,6 +7,11 @@ from ..services.pricing import effective_price_for_journey
 from ..utils.gallery import reorder_gallery
 from .base import UUIDSerializer
 from .gallery import JourneyMediaSerializer
+from .item_content import (
+    ItemBenefitSerializer,
+    ItemRecommendedPointSerializer,
+    ItemFAQSerializer,
+)
 from .media import MediaUploadMixin
 from .utils import clean_uploaded_media
 from ..utils.media import build_media_url
@@ -14,6 +19,9 @@ from ..utils.media import build_media_url
 
 class JourneySerializer(MediaUploadMixin, UUIDSerializer):
     media = JourneyMediaSerializer(many=True, read_only=True)
+    benefits = ItemBenefitSerializer(many=True, required=False)
+    recommended_points = ItemRecommendedPointSerializer(many=True, required=False)
+    faqs = ItemFAQSerializer(many=True, required=False)
     cover_media = serializers.SerializerMethodField()
     effective_price = serializers.SerializerMethodField()
     kind = serializers.SerializerMethodField()
@@ -108,7 +116,9 @@ class JourneySerializer(MediaUploadMixin, UUIDSerializer):
         for item in raw:
             if not isinstance(item, dict):
                 raise ValidationError(
-                    {"media_order": "Cada elemento debe ser un objeto con id o upload_key"}
+                    {
+                        "media_order": "Cada elemento debe ser un objeto con id o upload_key"
+                    }
                 )
             img_id = item.get("id")
             upload_key = item.get("upload_key")
@@ -164,7 +174,9 @@ class JourneySerializer(MediaUploadMixin, UUIDSerializer):
                         file = next(plain_iter)
                     except StopIteration:
                         raise ValidationError(
-                            {"media_order": f"No se encontró archivo para upload_key '{upload_key}'"}
+                            {
+                                "media_order": f"No se encontró archivo para upload_key '{upload_key}'"
+                            }
                         )
                 media_type = self._media_type_for_file(file)
                 new_objs.append(
@@ -235,10 +247,16 @@ class PublicJourneySerializer(JourneySerializer):
             "short_description",
             "seo_title",
             "seo_description",
+            "recommended_description",
+            "benefits_image",
+            "recommended_image",
             "category",
             "default_sort",
             "addons",
             "media",
+            "benefits",
+            "recommended_points",
+            "faqs",
             "cover_media",
             "effective_price",
             "kind",
@@ -249,4 +267,3 @@ class PublicJourneySerializer(JourneySerializer):
         if not category:
             return None
         return {"id": category.id, "name": category.name, "slug": category.slug}
-
