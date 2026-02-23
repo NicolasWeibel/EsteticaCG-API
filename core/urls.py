@@ -34,6 +34,10 @@ urlpatterns = [
         "api/v1/",
         include(("apps.scheduling.api.v1.urls", "scheduling"), namespace="scheduling"),
     ),
+    path(
+        "api/v1/waxing/",
+        include(("apps.waxing.api.v1.urls", "waxing"), namespace="waxing"),
+    ),
     # JWT helpers
     path("api/v1/auth/jwt/refresh/", TokenRefreshView.as_view(), name="jwt-refresh"),
     path("api/v1/auth/jwt/verify/", TokenVerifyView.as_view(), name="jwt-verify"),

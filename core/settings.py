@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "apps.authcodes",
     "apps.catalog",
     "apps.scheduling",
+    "apps.waxing",
 ]
 
 MIDDLEWARE = [
