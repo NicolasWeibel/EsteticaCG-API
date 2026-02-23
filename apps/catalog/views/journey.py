@@ -20,14 +20,14 @@ from ..services.filters_summary import build_filters_summary
 class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewSet):
     queryset = (
         Journey.objects.select_related("category")
-        .prefetch_related("media")
+        .prefetch_related("media", "benefits", "recommended_points", "faqs")
         .order_by("title")
     )
     serializer_class = JourneySerializer
     permission_classes = [IsAdminOrReadOnly]
     parser_classes = (MultiPartParser, FormParser, JSONParser)
     media_serializer_class = JourneyMediaSerializer
-    multipart_json_fields = ["addons"]
+    multipart_json_fields = ["addons", "benefits", "recommended_points", "faqs"]
     filterset_fields = ["category"]
 
     def get_serializer_class(self):

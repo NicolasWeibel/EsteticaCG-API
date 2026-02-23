@@ -999,3 +999,88 @@ def test_journey_items_excludes_inactive_treatments_and_combos():
     kinds = [item["kind"] for item in resp.data["items"]]
     assert kinds.count("treatment") == 1
     assert kinds.count("combo") == 1
+
+
+@pytest.mark.django_db
+def test_api_journey_patch_supports_nested_benefits_recommended_points_and_faqs():
+    client = APIClient()
+    client.force_authenticate(_make_staff())
+    category = _make_category()
+    journey = _make_journey(category)
+
+    benefit_keep = journey.benefits.create(
+        title="B vieja",
+        detail="Detalle viejo",
+        order=0,
+    )
+    benefit_remove = journey.benefits.create(
+        title="B borrar",
+        detail="Detalle borrar",
+        order=1,
+    )
+    rec_keep = journey.recommended_points.create(
+        title="R vieja",
+        detail="Detalle viejo",
+        order=0,
+    )
+    faq_keep = journey.faqs.create(
+        question="Q vieja",
+        answer="A vieja",
+        order=0,
+    )
+    faq_remove = journey.faqs.create(
+        question="Q borrar",
+        answer="A borrar",
+        order=1,
+    )
+
+    resp = client.patch(
+        f"/api/v1/catalog/journeys/{journey.id}/",
+        {
+            "benefits": [
+                {
+                    "id": str(benefit_keep.id),
+                    "title": "B actualizada",
+                    "detail": "Detalle actualizado",
+                    "order": 0,
+                },
+                {"title": "B nueva", "detail": "Detalle nueva", "order": 1},
+            ],
+            "benefits_remove_ids": [str(benefit_remove.id)],
+            "recommended_points": [
+                {
+                    "id": str(rec_keep.id),
+                    "title": "R actualizada",
+                    "detail": "Detalle actualizado",
+                    "order": 0,
+                },
+                {"title": "R nueva", "detail": "Detalle nueva", "order": 1},
+            ],
+            "faqs": [
+                {
+                    "id": str(faq_keep.id),
+                    "question": "Q actualizada",
+                    "answer": "A actualizada",
+                    "order": 0,
+                },
+                {"question": "Q nueva", "answer": "A nueva", "order": 1},
+            ],
+            "faqs_remove_ids": [str(faq_remove.id)],
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 200
+
+    journey.refresh_from_db()
+    benefits = list(journey.benefits.order_by("order", "id"))
+    assert [item.title for item in benefits] == ["B actualizada", "B nueva"]
+    assert [item.order for item in benefits] == [0, 1]
+
+    recommended_points = list(journey.recommended_points.order_by("order", "id"))
+    assert [item.title for item in recommended_points] == ["R actualizada", "R nueva"]
+    assert [item.order for item in recommended_points] == [0, 1]
+
+    faqs = list(journey.faqs.order_by("order", "id"))
+    assert [item.question for item in faqs] == ["Q actualizada", "Q nueva"]
+    assert [item.order for item in faqs] == [0, 1]

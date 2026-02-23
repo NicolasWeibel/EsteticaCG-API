@@ -1,8 +1,16 @@
 import json
+from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
-from ..models import Journey, JourneyMedia
+from ..models import (
+    Journey,
+    JourneyMedia,
+    ItemBenefit,
+    ItemRecommendedPoint,
+    ItemFAQ,
+)
 from ..services.pricing import effective_price_for_journey
 from ..utils.gallery import reorder_gallery
 from .base import UUIDSerializer
@@ -13,7 +21,7 @@ from .item_content import (
     ItemFAQSerializer,
 )
 from .media import MediaUploadMixin
-from .utils import clean_uploaded_media
+from .utils import clean_uploaded_media, parse_json_list
 from ..utils.media import build_media_url
 
 
@@ -45,6 +53,21 @@ class JourneySerializer(MediaUploadMixin, UUIDSerializer):
         write_only=True,
         required=False,
     )
+    benefits_remove_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=False,
+    )
+    recommended_points_remove_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=False,
+    )
+    faqs_remove_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        write_only=True,
+        required=False,
+    )
 
     class Meta:
         model = Journey
@@ -61,6 +84,112 @@ class JourneySerializer(MediaUploadMixin, UUIDSerializer):
 
     def get_kind(self, obj):
         return "journey"
+
+    def _normalize_ordered_list(self, items, field_name, fill_missing_order):
+        if items is None:
+            return None
+        if not isinstance(items, (list, tuple)):
+            raise ValidationError({field_name: "Debe ser una lista"})
+        normalized = []
+        for index, item in enumerate(items):
+            if not isinstance(item, dict):
+                raise ValidationError({field_name: "Cada elemento debe ser un objeto"})
+            if fill_missing_order and item.get("order") is None:
+                item = {**item, "order": index}
+            normalized.append(item)
+        return normalized
+
+    def _parse_id_list(self, raw, field_name):
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            try:
+                return json.loads(raw)
+            except Exception as exc:
+                raise ValidationError({field_name: f"JSON inválido: {exc}"})
+        return raw
+
+    def _apply_generic_changes(
+        self,
+        instance,
+        model_cls,
+        items,
+        remove_ids,
+        field_name,
+        update_fields,
+        fill_missing_order,
+    ):
+        content_type = ContentType.objects.get_for_model(
+            instance, for_concrete_model=False
+        )
+        base_qs = model_cls.objects.filter(
+            content_type=content_type, object_id=instance.id
+        )
+        if remove_ids:
+            base_qs.filter(id__in=remove_ids).delete()
+
+        if items is None:
+            return
+
+        normalized = self._normalize_ordered_list(items, field_name, fill_missing_order)
+        if not normalized:
+            return
+
+        existing = list(base_qs)
+        existing_map = {str(obj.id): obj for obj in existing}
+        max_order = max([obj.order for obj in existing], default=-1)
+        to_create = []
+        to_update = []
+
+        for item in normalized:
+            if not isinstance(item, dict):
+                raise ValidationError({field_name: "Cada elemento debe ser un objeto"})
+            item_id = item.get("id")
+            payload = dict(item)
+            payload.pop("id", None)
+            if item_id:
+                obj = existing_map.get(str(item_id))
+                if not obj:
+                    raise ValidationError(
+                        {field_name: f"El id {item_id} no pertenece a este item"}
+                    )
+                if payload.get("order") is None:
+                    payload.pop("order", None)
+                for key, value in payload.items():
+                    setattr(obj, key, value)
+                to_update.append(obj)
+            else:
+                if payload.get("order") is None:
+                    max_order += 1
+                    payload["order"] = max_order
+                to_create.append(
+                    model_cls(
+                        content_type=content_type,
+                        object_id=instance.id,
+                        **payload,
+                    )
+                )
+
+        if to_create:
+            model_cls.objects.bulk_create(to_create)
+        if to_update:
+            model_cls.objects.bulk_update(to_update, update_fields)
+        self._resequence_generic_items(instance, model_cls)
+
+    def _resequence_generic_items(self, instance, model_cls):
+        content_type = ContentType.objects.get_for_model(
+            instance, for_concrete_model=False
+        )
+        qs = model_cls.objects.filter(
+            content_type=content_type, object_id=instance.id
+        ).order_by("order", "created_at", "id")
+        to_update = []
+        for index, obj in enumerate(qs):
+            if obj.order != index:
+                obj.order = index
+                to_update.append(obj)
+        if to_update:
+            model_cls.objects.bulk_update(to_update, ["order"])
 
     def _create_media(self, journey, media):
         start = journey.media.count()
@@ -81,6 +210,33 @@ class JourneySerializer(MediaUploadMixin, UUIDSerializer):
     def to_internal_value(self, data):
         mutable = data.copy()
         media_order = mutable.get("media_order")
+        if "benefits" in mutable:
+            mutable["benefits"] = parse_json_list(
+                mutable.get("benefits"), "benefits", ValidationError
+            )
+        if "recommended_points" in mutable:
+            mutable["recommended_points"] = parse_json_list(
+                mutable.get("recommended_points"),
+                "recommended_points",
+                ValidationError,
+            )
+        if "faqs" in mutable:
+            mutable["faqs"] = parse_json_list(
+                mutable.get("faqs"), "faqs", ValidationError
+            )
+        if "benefits_remove_ids" in mutable:
+            mutable["benefits_remove_ids"] = self._parse_id_list(
+                mutable.get("benefits_remove_ids"), "benefits_remove_ids"
+            )
+        if "recommended_points_remove_ids" in mutable:
+            mutable["recommended_points_remove_ids"] = self._parse_id_list(
+                mutable.get("recommended_points_remove_ids"),
+                "recommended_points_remove_ids",
+            )
+        if "faqs_remove_ids" in mutable:
+            mutable["faqs_remove_ids"] = self._parse_id_list(
+                mutable.get("faqs_remove_ids"), "faqs_remove_ids"
+            )
         if "uploaded_media" in mutable:
             cleaned = clean_uploaded_media(mutable.get("uploaded_media"))
             if cleaned is None:
@@ -200,35 +356,107 @@ class JourneySerializer(MediaUploadMixin, UUIDSerializer):
             JourneyMedia.objects.bulk_update(final_existing, ["order"])
 
     def create(self, validated_data):
+        benefits = validated_data.pop("benefits", [])
+        recommended_points = validated_data.pop("recommended_points", [])
+        faqs = validated_data.pop("faqs", [])
+        validated_data.pop("benefits_remove_ids", None)
+        validated_data.pop("recommended_points_remove_ids", None)
+        validated_data.pop("faqs_remove_ids", None)
         uploaded_media = validated_data.pop("uploaded_media", [])
         removed_ids = validated_data.pop("removed_media_ids", [])
-        ordered_media_ids = validated_data.pop("ordered_media_ids", [])
+        validated_data.pop("ordered_media_ids", [])
         media_order = validated_data.pop("media_order", None)
         uploaded_map = self.context.get("uploaded_map", {})
         uploaded_list = self.context.get("uploaded_list", [])
-        journey = super().create(validated_data)
-        if removed_ids:
-            journey.media.filter(id__in=removed_ids).delete()
-        if media_order is not None:
-            self._apply_mixed_order(journey, media_order, uploaded_map, uploaded_list)
-        elif uploaded_media:
-            self._create_media(journey, uploaded_media)
-        return journey
+        with transaction.atomic():
+            journey = super().create(validated_data)
+            self._apply_generic_changes(
+                journey,
+                ItemBenefit,
+                benefits,
+                [],
+                "benefits",
+                ["title", "detail", "order"],
+                True,
+            )
+            self._apply_generic_changes(
+                journey,
+                ItemRecommendedPoint,
+                recommended_points,
+                [],
+                "recommended_points",
+                ["title", "detail", "order"],
+                True,
+            )
+            self._apply_generic_changes(
+                journey,
+                ItemFAQ,
+                faqs,
+                [],
+                "faqs",
+                ["question", "answer", "order"],
+                True,
+            )
+            if removed_ids:
+                journey.media.filter(id__in=removed_ids).delete()
+            if media_order is not None:
+                self._apply_mixed_order(journey, media_order, uploaded_map, uploaded_list)
+            elif uploaded_media:
+                self._create_media(journey, uploaded_media)
+            return journey
 
     def update(self, instance, validated_data):
+        benefits = validated_data.pop("benefits", None)
+        recommended_points = validated_data.pop("recommended_points", None)
+        faqs = validated_data.pop("faqs", None)
+        benefits_remove_ids = validated_data.pop("benefits_remove_ids", None)
+        recommended_points_remove_ids = validated_data.pop(
+            "recommended_points_remove_ids", None
+        )
+        faqs_remove_ids = validated_data.pop("faqs_remove_ids", None)
         uploaded_media = validated_data.pop("uploaded_media", [])
         removed_ids = validated_data.pop("removed_media_ids", [])
         ordered_media_ids = validated_data.pop("ordered_media_ids", [])
         media_order = validated_data.pop("media_order", None)
         uploaded_map = self.context.get("uploaded_map", {})
         uploaded_list = self.context.get("uploaded_list", [])
-        journey = super().update(instance, validated_data)
-        if removed_ids:
-            journey.media.filter(id__in=removed_ids).delete()
-        if media_order is not None:
-            self._apply_mixed_order(journey, media_order, uploaded_map, uploaded_list)
-        elif uploaded_media:
-            self._create_media(journey, uploaded_media)
+        with transaction.atomic():
+            journey = super().update(instance, validated_data)
+            self._apply_generic_changes(
+                journey,
+                ItemBenefit,
+                benefits,
+                benefits_remove_ids,
+                "benefits",
+                ["title", "detail", "order"],
+                False,
+            )
+            self._apply_generic_changes(
+                journey,
+                ItemRecommendedPoint,
+                recommended_points,
+                recommended_points_remove_ids,
+                "recommended_points",
+                ["title", "detail", "order"],
+                False,
+            )
+            self._apply_generic_changes(
+                journey,
+                ItemFAQ,
+                faqs,
+                faqs_remove_ids,
+                "faqs",
+                ["question", "answer", "order"],
+                False,
+            )
+            if removed_ids:
+                journey.media.filter(id__in=removed_ids).delete()
+            if media_order is not None:
+                self._apply_mixed_order(
+                    journey, media_order, uploaded_map, uploaded_list
+                )
+            elif uploaded_media:
+                self._create_media(journey, uploaded_media)
         if ordered_media_ids:
             reorder_gallery(journey, ordered_media_ids)
         return journey
