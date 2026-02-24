@@ -1,14 +1,12 @@
 # apps/catalog/admin/journey.py
 from django.contrib import admin
-from django.contrib.contenttypes.admin import GenericTabularInline
 from django.utils.html import format_html
 
-from ..models import (
-    Journey,
-    JourneyMedia,
-    ItemBenefit,
-    ItemRecommendedPoint,
-    ItemFAQ,
+from ..models import Journey, JourneyMedia
+from .item_content_inlines import (
+    ItemBenefitInline,
+    ItemFAQInline,
+    ItemRecommendedPointInline,
 )
 from .mixins import CloudinaryMediaAdminMixin
 from ..utils.media import build_media_url
@@ -34,27 +32,6 @@ class JourneyMediaInline(admin.TabularInline):
                 url,
             )
         return ""
-
-
-class ItemBenefitInline(GenericTabularInline):
-    model = ItemBenefit
-    extra = 1
-    fields = ("title", "detail", "order")
-    ordering = ("order",)
-
-
-class ItemRecommendedPointInline(GenericTabularInline):
-    model = ItemRecommendedPoint
-    extra = 1
-    fields = ("title", "detail", "order")
-    ordering = ("order",)
-
-
-class ItemFAQInline(GenericTabularInline):
-    model = ItemFAQ
-    extra = 1
-    fields = ("question", "answer", "order")
-    ordering = ("order",)
 
 
 @admin.register(Journey)

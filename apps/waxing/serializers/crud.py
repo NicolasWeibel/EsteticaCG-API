@@ -4,6 +4,8 @@ from django.db import transaction
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
+from apps.shared.serializers.ordered_items import OrderedNestedItemsMixin
+
 from ..models import (
     Area,
     AreaCategory,
@@ -106,7 +108,9 @@ class FaqItemNestedSerializer(UUIDSerializer):
         }
 
 
-class WaxingContentSerializer(ModelCleanValidationMixin, UUIDSerializer):
+class WaxingContentSerializer(
+    ModelCleanValidationMixin, OrderedNestedItemsMixin, UUIDSerializer
+):
     benefits = BenefitItemNestedSerializer(many=True, required=False)
     recommendations = RecommendationItemNestedSerializer(many=True, required=False)
     faqs = FaqItemNestedSerializer(many=True, required=False)
@@ -144,33 +148,6 @@ class WaxingContentSerializer(ModelCleanValidationMixin, UUIDSerializer):
                 raise ValidationError({field_name: f"JSON invalido: {exc}"})
         return raw
 
-    def _normalize_ordered_list(self, items, field_name, fill_missing_order):
-        if items is None:
-            return None
-        if not isinstance(items, (list, tuple)):
-            raise ValidationError({field_name: "Debe ser una lista."})
-
-        normalized = []
-        for index, item in enumerate(items):
-            if not isinstance(item, dict):
-                raise ValidationError(
-                    {field_name: "Cada elemento debe ser un objeto."}
-                )
-            if fill_missing_order and item.get("order") is None:
-                item = {**item, "order": index}
-            normalized.append(item)
-        return normalized
-
-    def _resequence_related_items(self, model_cls, content):
-        qs = model_cls.objects.filter(content=content).order_by("order", "created_at", "id")
-        to_update = []
-        for index, obj in enumerate(qs):
-            if obj.order != index:
-                obj.order = index
-                to_update.append(obj)
-        if to_update:
-            model_cls.objects.bulk_update(to_update, ["order"])
-
     def _apply_related_changes(
         self,
         *,
@@ -183,49 +160,19 @@ class WaxingContentSerializer(ModelCleanValidationMixin, UUIDSerializer):
         fill_missing_order,
     ):
         base_qs = model_cls.objects.filter(content=content)
-        if remove_ids:
-            base_qs.filter(id__in=remove_ids).delete()
-
-        if items is None:
-            return
-
-        normalized = self._normalize_ordered_list(items, field_name, fill_missing_order)
-        if not normalized:
-            return
-
-        existing = list(base_qs)
-        existing_map = {str(obj.id): obj for obj in existing}
-        max_order = max([obj.order for obj in existing], default=-1)
-        to_create = []
-        to_update = []
-
-        for item in normalized:
-            item_id = item.get("id")
-            payload = dict(item)
-            payload.pop("id", None)
-
-            if item_id:
-                obj = existing_map.get(str(item_id))
-                if not obj:
-                    raise ValidationError(
-                        {field_name: f"El id {item_id} no pertenece a este contenido."}
-                    )
-                if payload.get("order") is None:
-                    payload.pop("order", None)
-                for key, value in payload.items():
-                    setattr(obj, key, value)
-                to_update.append(obj)
-            else:
-                if payload.get("order") is None:
-                    max_order += 1
-                    payload["order"] = max_order
-                to_create.append(model_cls(content=content, **payload))
-
-        if to_create:
-            model_cls.objects.bulk_create(to_create)
-        if to_update:
-            model_cls.objects.bulk_update(to_update, update_fields)
-        self._resequence_related_items(model_cls, content)
+        self._apply_ordered_changes(
+            base_qs=base_qs,
+            model_cls=model_cls,
+            items=items,
+            remove_ids=remove_ids,
+            field_name=field_name,
+            update_fields=update_fields,
+            fill_missing_order=fill_missing_order,
+            create_instance=lambda payload: model_cls(content=content, **payload),
+            not_found_error="El id {item_id} no pertenece a este contenido.",
+            list_error="Debe ser una lista.",
+            object_error="Cada elemento debe ser un objeto.",
+        )
 
     def to_internal_value(self, data):
         mutable = data.copy()

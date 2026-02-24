@@ -1,5 +1,4 @@
 import json
-from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
@@ -20,12 +19,13 @@ from .item_content import (
     ItemRecommendedPointSerializer,
     ItemFAQSerializer,
 )
+from .item_content_sync import GenericItemContentSyncMixin
 from .media import MediaUploadMixin
 from .utils import clean_uploaded_media, parse_json_list
 from ..utils.media import build_media_url
 
 
-class JourneySerializer(MediaUploadMixin, UUIDSerializer):
+class JourneySerializer(GenericItemContentSyncMixin, MediaUploadMixin, UUIDSerializer):
     media = JourneyMediaSerializer(many=True, read_only=True)
     benefits = ItemBenefitSerializer(many=True, required=False)
     recommended_points = ItemRecommendedPointSerializer(many=True, required=False)
@@ -84,112 +84,6 @@ class JourneySerializer(MediaUploadMixin, UUIDSerializer):
 
     def get_kind(self, obj):
         return "journey"
-
-    def _normalize_ordered_list(self, items, field_name, fill_missing_order):
-        if items is None:
-            return None
-        if not isinstance(items, (list, tuple)):
-            raise ValidationError({field_name: "Debe ser una lista"})
-        normalized = []
-        for index, item in enumerate(items):
-            if not isinstance(item, dict):
-                raise ValidationError({field_name: "Cada elemento debe ser un objeto"})
-            if fill_missing_order and item.get("order") is None:
-                item = {**item, "order": index}
-            normalized.append(item)
-        return normalized
-
-    def _parse_id_list(self, raw, field_name):
-        if raw is None:
-            return None
-        if isinstance(raw, str):
-            try:
-                return json.loads(raw)
-            except Exception as exc:
-                raise ValidationError({field_name: f"JSON inválido: {exc}"})
-        return raw
-
-    def _apply_generic_changes(
-        self,
-        instance,
-        model_cls,
-        items,
-        remove_ids,
-        field_name,
-        update_fields,
-        fill_missing_order,
-    ):
-        content_type = ContentType.objects.get_for_model(
-            instance, for_concrete_model=False
-        )
-        base_qs = model_cls.objects.filter(
-            content_type=content_type, object_id=instance.id
-        )
-        if remove_ids:
-            base_qs.filter(id__in=remove_ids).delete()
-
-        if items is None:
-            return
-
-        normalized = self._normalize_ordered_list(items, field_name, fill_missing_order)
-        if not normalized:
-            return
-
-        existing = list(base_qs)
-        existing_map = {str(obj.id): obj for obj in existing}
-        max_order = max([obj.order for obj in existing], default=-1)
-        to_create = []
-        to_update = []
-
-        for item in normalized:
-            if not isinstance(item, dict):
-                raise ValidationError({field_name: "Cada elemento debe ser un objeto"})
-            item_id = item.get("id")
-            payload = dict(item)
-            payload.pop("id", None)
-            if item_id:
-                obj = existing_map.get(str(item_id))
-                if not obj:
-                    raise ValidationError(
-                        {field_name: f"El id {item_id} no pertenece a este item"}
-                    )
-                if payload.get("order") is None:
-                    payload.pop("order", None)
-                for key, value in payload.items():
-                    setattr(obj, key, value)
-                to_update.append(obj)
-            else:
-                if payload.get("order") is None:
-                    max_order += 1
-                    payload["order"] = max_order
-                to_create.append(
-                    model_cls(
-                        content_type=content_type,
-                        object_id=instance.id,
-                        **payload,
-                    )
-                )
-
-        if to_create:
-            model_cls.objects.bulk_create(to_create)
-        if to_update:
-            model_cls.objects.bulk_update(to_update, update_fields)
-        self._resequence_generic_items(instance, model_cls)
-
-    def _resequence_generic_items(self, instance, model_cls):
-        content_type = ContentType.objects.get_for_model(
-            instance, for_concrete_model=False
-        )
-        qs = model_cls.objects.filter(
-            content_type=content_type, object_id=instance.id
-        ).order_by("order", "created_at", "id")
-        to_update = []
-        for index, obj in enumerate(qs):
-            if obj.order != index:
-                obj.order = index
-                to_update.append(obj)
-        if to_update:
-            model_cls.objects.bulk_update(to_update, ["order"])
 
     def _create_media(self, journey, media):
         start = journey.media.count()

@@ -1,7 +1,6 @@
 # apps/catalog/admin/combo.py
 from django import forms
 from django.contrib import admin
-from django.contrib.contenttypes.admin import GenericTabularInline
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.html import format_html
 
@@ -10,9 +9,11 @@ from ..models import (
     ComboIngredient,
     ComboSessionItem,
     ComboMedia,
-    ItemBenefit,
-    ItemRecommendedPoint,
-    ItemFAQ,
+)
+from .item_content_inlines import (
+    ItemBenefitInline,
+    ItemFAQInline,
+    ItemRecommendedPointInline,
 )
 from .mixins import CloudinaryMediaAdminMixin
 from ..services.validation import (
@@ -183,27 +184,6 @@ class ComboMediaInline(admin.TabularInline):
                 url,
             )
         return ""
-
-
-class ItemBenefitInline(GenericTabularInline):
-    model = ItemBenefit
-    extra = 1
-    fields = ("title", "detail", "order")
-    ordering = ("order",)
-
-
-class ItemRecommendedPointInline(GenericTabularInline):
-    model = ItemRecommendedPoint
-    extra = 1
-    fields = ("title", "detail", "order")
-    ordering = ("order",)
-
-
-class ItemFAQInline(GenericTabularInline):
-    model = ItemFAQ
-    extra = 1
-    fields = ("question", "answer", "order")
-    ordering = ("order",)
 
 
 @admin.register(Combo)
