@@ -91,6 +91,7 @@ def test_public_endpoint_contract():
         cat_mujer,
         name="Axilas",
         price=8000,
+        duration=25,
         is_featured=True,
     )
     _create_area(hombre, cat_hombre, name="Pecho", price=9000)
@@ -98,6 +99,7 @@ def test_public_endpoint_contract():
         mujer,
         name="Pack Premium",
         price=15000,
+        duration=60,
         is_featured=True,
     )
     PackArea.objects.create(pack=pack_featured, area=area_featured)
@@ -123,6 +125,9 @@ def test_public_endpoint_contract():
     assert set(response.data["genders"]) == {"mujer", "hombre"}
     featured_mujer = response.data["featured_by_gender"]["mujer"]
     assert {item["kind"] for item in featured_mujer} == {"area", "pack"}
+    featured_by_name = {item["name"]: item for item in featured_mujer}
+    assert featured_by_name["Axilas"]["duration"] == 25
+    assert featured_by_name["Pack Premium"]["duration"] == 60
     assert response.data["content"]["title"] == "Sobre depilacion"
     assert "image" in response.data["content"]
     assert "benefits_image" in response.data["content"]
@@ -195,6 +200,47 @@ def test_promotional_price_validation_for_area_and_pack():
     )
     assert pack_resp.status_code == 400
     assert "promotional_price" in pack_resp.data
+
+
+@pytest.mark.django_db
+def test_duration_validation_for_area_and_pack():
+    staff = _staff_user()
+    client = APIClient()
+    client.force_authenticate(staff)
+
+    section = _create_section("mujer")
+    category = _create_category(section)
+
+    area_resp = client.post(
+        "/api/v1/waxing/areas/",
+        {
+            "section": str(section.id),
+            "category": str(category.id),
+            "name": "Area invalida duration",
+            "price": 1000,
+            "duration": 0,
+            "order": 0,
+            "is_active": True,
+        },
+        format="json",
+    )
+    assert area_resp.status_code == 400
+    assert "duration" in area_resp.data
+
+    pack_resp = client.post(
+        "/api/v1/waxing/packs/",
+        {
+            "section": str(section.id),
+            "name": "Pack invalido duration",
+            "price": 2000,
+            "duration": 0,
+            "order": 0,
+            "is_active": True,
+        },
+        format="json",
+    )
+    assert pack_resp.status_code == 400
+    assert "duration" in pack_resp.data
 
 
 @pytest.mark.django_db

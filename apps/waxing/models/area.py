@@ -72,6 +72,7 @@ class Area(TimeStampedUUIDModel):
     name = models.CharField(max_length=120)
     price = models.PositiveIntegerField()
     promotional_price = models.PositiveIntegerField(blank=True, null=True)
+    duration = models.PositiveIntegerField(blank=True, null=True)
     short_description = models.CharField(max_length=255, blank=True)
     description = models.TextField(blank=True)
     image = models.ImageField(upload_to="waxing/areas/", blank=True, null=True)
@@ -91,6 +92,10 @@ class Area(TimeStampedUUIDModel):
                 condition=Q(promotional_price__isnull=True)
                 | Q(promotional_price__lt=F("price")),
                 name="ck_waxing_area_promo_lt_price",
+            ),
+            models.CheckConstraint(
+                condition=Q(duration__isnull=True) | Q(duration__gt=0),
+                name="ck_waxing_area_duration_gt_0_or_null",
             ),
         ]
         indexes = [
@@ -117,6 +122,8 @@ class Area(TimeStampedUUIDModel):
             errors["promotional_price"] = (
                 "promotional_price debe ser menor que price."
             )
+        if self.duration is not None and self.duration <= 0:
+            errors["duration"] = "duration debe ser mayor a 0 o null."
 
         if errors:
             raise ValidationError(errors)
