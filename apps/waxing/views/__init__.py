@@ -11,7 +11,7 @@ from .crud import (
     WaxingContentViewSet,
     WaxingSettingsViewSet,
 )
-from .public import WaxingPublicView
+from .public import WaxingPublicSummaryView, WaxingPublicView
 from .ordering import (
     CategoryAreaReorderView,
     CategoryPackReorderView,
@@ -33,5 +33,6 @@ __all__ = [
     "SectionFeaturedReorderView",
     "WaxingContentViewSet",
     "WaxingPublicView",
+    "WaxingPublicSummaryView",
     "WaxingSettingsViewSet",
 ]

@@ -15,6 +15,7 @@ from ...views import (
     SectionFeaturedReorderView,
     SectionViewSet,
     WaxingContentViewSet,
+    WaxingPublicSummaryView,
     WaxingPublicView,
     WaxingSettingsViewSet,
 )
@@ -36,6 +37,7 @@ router.register(r"faqs", FaqItemViewSet)
 
 urlpatterns = [
     path("", WaxingPublicView.as_view(), name="summary"),
+    path("summary/", WaxingPublicSummaryView.as_view(), name="summary-minimal"),
     path(
         "categories/<uuid:category_id>/areas/reorder/",
         CategoryAreaReorderView.as_view(),

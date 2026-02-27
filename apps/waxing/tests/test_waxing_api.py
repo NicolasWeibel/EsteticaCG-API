@@ -152,6 +152,32 @@ def test_public_filter_by_gender_keeps_full_structure():
 
 
 @pytest.mark.django_db
+def test_public_summary_endpoint_contract():
+    client = APIClient()
+    settings = WaxingSettings.objects.order_by("-created_at").first()
+    content = WaxingContent.objects.order_by("-created_at").first()
+
+    settings.is_enabled = False
+    settings.public_visible = False
+    settings.save(update_fields=["is_enabled", "public_visible"])
+
+    content.title = "Landing Waxing"
+    content.save(update_fields=["title"])
+
+    response = client.get("/api/v1/waxing/summary/")
+    assert response.status_code == 200
+    assert set(response.data.keys()) == {
+        "title",
+        "image",
+        "is_enabled",
+        "public_visible",
+    }
+    assert response.data["title"] == "Landing Waxing"
+    assert response.data["is_enabled"] is False
+    assert response.data["public_visible"] is False
+
+
+@pytest.mark.django_db
 def test_public_rejects_gender_query_param():
     client = APIClient()
     _create_section("mujer")

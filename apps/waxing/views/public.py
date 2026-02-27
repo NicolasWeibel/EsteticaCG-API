@@ -176,3 +176,21 @@ class WaxingPublicView(APIView):
                 for item in content.faqs.filter(is_active=True).order_by("order")
             ],
         }
+
+
+class WaxingPublicSummaryView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        settings_obj = WaxingSettings.objects.order_by("-created_at").first()
+        content = WaxingContent.objects.order_by("-created_at").first()
+
+        payload = {
+            "title": "" if content is None else content.title,
+            "image": None if content is None else image_url(content.image),
+            "is_enabled": True if settings_obj is None else settings_obj.is_enabled,
+            "public_visible": (
+                True if settings_obj is None else settings_obj.public_visible
+            ),
+        }
+        return Response(payload, status=status.HTTP_200_OK)
