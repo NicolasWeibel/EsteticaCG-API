@@ -1,0 +1,44 @@
+[
+  {
+    "model": "reviews.manualreview",
+    "pk": "2e9c9577-a8fc-4f33-a2fd-9a8d4c6c2f07",
+    "fields": {
+      "created_at": "2026-02-01T10:00:00Z",
+      "updated_at": "2026-02-01T10:00:00Z",
+      "author_name": "Sofia M.",
+      "rating": 5,
+      "comment": "Excelente atencion y resultados.",
+      "source_label": "Testimonio",
+      "is_active": true,
+      "order": 0
+    }
+  },
+  {
+    "model": "reviews.manualreview",
+    "pk": "0b5a834a-b15c-48b1-aa43-9f5555ac8a70",
+    "fields": {
+      "created_at": "2026-02-02T10:00:00Z",
+      "updated_at": "2026-02-02T10:00:00Z",
+      "author_name": "Carla G.",
+      "rating": 4,
+      "comment": "Muy buena experiencia.",
+      "source_label": "Testimonio",
+      "is_active": true,
+      "order": 1
+    }
+  },
+  {
+    "model": "reviews.manualreview",
+    "pk": "8dcfaeaa-44dc-45ea-9b97-ec197f4d4f3d",
+    "fields": {
+      "created_at": "2026-02-03T10:00:00Z",
+      "updated_at": "2026-02-03T10:00:00Z",
+      "author_name": "Paula R.",
+      "rating": 5,
+      "comment": "Comentario temporal desactivado.",
+      "source_label": "Testimonio",
+      "is_active": false,
+      "order": 2
+    }
+  }
+]

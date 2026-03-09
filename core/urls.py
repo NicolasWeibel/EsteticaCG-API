@@ -38,6 +38,10 @@ urlpatterns = [
         "api/v1/waxing/",
         include(("apps.waxing.api.v1.urls", "waxing"), namespace="waxing"),
     ),
+    path(
+        "api/v1/reviews/",
+        include(("apps.reviews.api.v1.urls", "reviews"), namespace="reviews"),
+    ),
     # JWT helpers
     path("api/v1/auth/jwt/refresh/", TokenRefreshView.as_view(), name="jwt-refresh"),
     path("api/v1/auth/jwt/verify/", TokenVerifyView.as_view(), name="jwt-verify"),
