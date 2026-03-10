@@ -159,22 +159,38 @@ def test_public_summary_endpoint_contract():
 
     settings.is_enabled = False
     settings.public_visible = False
-    settings.save(update_fields=["is_enabled", "public_visible"])
+    settings.maintenance_mode = True
+    settings.maintenance_message = "Estamos actualizando el servicio."
+    settings.save(
+        update_fields=[
+            "is_enabled",
+            "public_visible",
+            "maintenance_mode",
+            "maintenance_message",
+        ]
+    )
 
     content.title = "Landing Waxing"
-    content.save(update_fields=["title"])
+    content.short_description = "Resumen corto de waxing."
+    content.save(update_fields=["title", "short_description"])
 
     response = client.get("/api/v1/waxing/summary/")
     assert response.status_code == 200
     assert set(response.data.keys()) == {
         "title",
+        "short_description",
         "image",
         "is_enabled",
         "public_visible",
+        "maintenance_mode",
+        "maintenance_message",
     }
     assert response.data["title"] == "Landing Waxing"
+    assert response.data["short_description"] == "Resumen corto de waxing."
     assert response.data["is_enabled"] is False
     assert response.data["public_visible"] is False
+    assert response.data["maintenance_mode"] is True
+    assert response.data["maintenance_message"] == "Estamos actualizando el servicio."
 
 
 @pytest.mark.django_db
