@@ -6,6 +6,13 @@ from datetime import timedelta
 BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env()
 
+
+def _env_pattern_list(name: str) -> list[str]:
+    raw = env(name, default="")
+    if not raw:
+        return []
+    return [item.strip() for item in str(raw).split(";") if item.strip()]
+
 # ── CARGAR .ENV (SEGÚN ENTORNO) ──
 ENV = os.getenv("ENV", "development")
 environ.Env.read_env(BASE_DIR / f".env.{ENV}")
@@ -53,7 +60,7 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",  # 👈 Vital para el CSS en Cloud Run
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
+    "core.middleware.LanAwareCsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "allauth.account.middleware.AccountMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -62,8 +69,10 @@ MIDDLEWARE = [
 
 # ── CORS Y SEGURIDAD ──
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
+CORS_ALLOWED_ORIGIN_REGEXES = _env_pattern_list("CORS_ALLOWED_ORIGIN_REGEXES")
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+CSRF_TRUSTED_ORIGIN_REGEXES = _env_pattern_list("CSRF_TRUSTED_ORIGIN_REGEXES")
 
 # Permitir cookies en entornos cruzados (Localhost <-> Cloud Run)
 # En HTTP local Chrome bloquea "SameSite=None" sin "Secure", por eso usamos "Lax" en DEBUG.
@@ -230,6 +239,9 @@ ACCOUNT_ALLOWED_REDIRECT_URLS = env.list(
         "http://localhost:5173/mi-cuenta",
         "http://localhost:5173/auth/callback",
     ],
+)
+ACCOUNT_ALLOWED_REDIRECT_URL_REGEXES = _env_pattern_list(
+    "ACCOUNT_ALLOWED_REDIRECT_URL_REGEXES",
 )
 
 # Nueva API de allauth (sin username)

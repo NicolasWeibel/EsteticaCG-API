@@ -1,6 +1,7 @@
 # ===========================================
 # apps/users/api/v1/views.py
 # ===========================================
+import re
 from urllib.parse import urlencode, urlparse
 from django.conf import settings
 from django.http import HttpResponseRedirect
@@ -30,7 +31,12 @@ def _is_allowed_next(next_url: str) -> bool:
     # compara esquema+host+path con whitelist exacta
     parsed = urlparse(next_url)
     normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-    return normalized in set(settings.ACCOUNT_ALLOWED_REDIRECT_URLS)
+    if normalized in set(settings.ACCOUNT_ALLOWED_REDIRECT_URLS):
+        return True
+    return any(
+        re.fullmatch(pattern, normalized)
+        for pattern in getattr(settings, "ACCOUNT_ALLOWED_REDIRECT_URL_REGEXES", [])
+    )
 
 
 def _safe_next(next_url: str | None) -> str:
@@ -237,9 +243,8 @@ def google_login_start(request):
     )
 
     # Si next es absoluto, validá contra la lista blanca
-    allowed = set(getattr(settings, "ACCOUNT_ALLOWED_REDIRECT_URLS", []))
     if next_url.startswith("http"):
-        if allowed and next_url not in allowed:
+        if not _is_allowed_next(next_url):
             next_url = getattr(settings, "FRONTEND_LOGIN_REDIRECT_URL", "/")
 
     # URL de allauth para Google. Con SOCIALACCOUNT_LOGIN_ON_GET=True
