@@ -91,6 +91,7 @@ def test_public_endpoint_contract():
         cat_mujer,
         name="Axilas",
         price=8000,
+        promotional_price=7000,
         duration=25,
         is_featured=True,
     )
@@ -99,6 +100,7 @@ def test_public_endpoint_contract():
         mujer,
         name="Pack Premium",
         price=15000,
+        promotional_price=12000,
         duration=60,
         is_featured=True,
     )
@@ -128,6 +130,20 @@ def test_public_endpoint_contract():
     featured_by_name = {item["name"]: item for item in featured_mujer}
     assert featured_by_name["Axilas"]["duration"] == 25
     assert featured_by_name["Pack Premium"]["duration"] == 60
+    assert featured_by_name["Axilas"]["price"] == 7000
+    assert featured_by_name["Axilas"]["price_without_discount"] == 8000
+    assert "promotional_price" not in featured_by_name["Axilas"]
+    assert featured_by_name["Pack Premium"]["price"] == 12000
+    assert featured_by_name["Pack Premium"]["price_without_discount"] == 15000
+    assert "promotional_price" not in featured_by_name["Pack Premium"]
+    category_items = response.data["sections_by_gender"]["mujer"]["categories"][0]["items"]
+    items_by_name = {item["name"]: item for item in category_items}
+    assert items_by_name["Axilas"]["price"] == 7000
+    assert items_by_name["Axilas"]["price_without_discount"] == 8000
+    assert "promotional_price" not in items_by_name["Axilas"]
+    assert items_by_name["Pack Premium"]["price"] == 12000
+    assert items_by_name["Pack Premium"]["price_without_discount"] == 15000
+    assert "promotional_price" not in items_by_name["Pack Premium"]
     assert response.data["content"]["title"] == "Sobre depilacion"
     assert "image" in response.data["content"]
     assert "benefits_image" in response.data["content"]
@@ -149,6 +165,50 @@ def test_public_filter_by_gender_keeps_full_structure():
     assert response.data["sections_by_gender"]["mujer"]["section"]["name"] == "mujer"
     assert response.data["sections_by_gender"]["hombre"] == {}
     assert response.data["featured_by_gender"]["hombre"] == []
+
+
+@pytest.mark.django_db
+def test_public_hides_price_and_price_without_discount_when_show_prices_is_false():
+    client = APIClient()
+    section = _create_section("mujer")
+    category = _create_category(section, name="Piernas")
+    area = _create_area(
+        section,
+        category,
+        name="Axilas",
+        price=8000,
+        promotional_price=7000,
+        is_featured=True,
+    )
+    pack = _create_pack(
+        section,
+        name="Pack Premium",
+        price=15000,
+        promotional_price=12000,
+        is_featured=True,
+    )
+    PackArea.objects.create(pack=pack, area=area)
+
+    settings = WaxingSettings.objects.order_by("-created_at").first()
+    settings.show_prices = False
+    settings.save(update_fields=["show_prices"])
+
+    response = client.get("/api/v1/waxing/?section=mujer")
+    assert response.status_code == 200
+
+    category_items = response.data["sections_by_gender"]["mujer"]["categories"][0]["items"]
+    items_by_name = {item["name"]: item for item in category_items}
+    assert items_by_name["Axilas"]["price"] is None
+    assert items_by_name["Axilas"]["price_without_discount"] is None
+    assert items_by_name["Pack Premium"]["price"] is None
+    assert items_by_name["Pack Premium"]["price_without_discount"] is None
+
+    featured_items = response.data["featured_by_gender"]["mujer"]
+    featured_by_name = {item["name"]: item for item in featured_items}
+    assert featured_by_name["Axilas"]["price"] is None
+    assert featured_by_name["Axilas"]["price_without_discount"] is None
+    assert featured_by_name["Pack Premium"]["price"] is None
+    assert featured_by_name["Pack Premium"]["price_without_discount"] is None
 
 
 @pytest.mark.django_db
@@ -386,6 +446,44 @@ def test_featured_mixed_manual_and_non_manual_ordering():
     non_manual_response = client.get("/api/v1/waxing/?section=mujer")
     non_manual_names = [item["name"] for item in non_manual_response.data["featured_by_gender"]["mujer"]]
     assert non_manual_names == ["Pack A", "Zona Z", "Zona B"]
+
+
+@pytest.mark.django_db
+def test_price_sort_uses_effective_price_when_promotions_exist():
+    client = APIClient()
+    section = _create_section("mujer", featured_sort=SortOption.PRICE_ASC)
+    category = _create_category(
+        section,
+        name="Rostro",
+        area_sort=SortOption.PRICE_ASC,
+        show_packs=False,
+    )
+    _create_area(
+        section,
+        category,
+        name="Area base 1000",
+        price=1000,
+        is_featured=True,
+    )
+    _create_area(
+        section,
+        category,
+        name="Area promo 900",
+        price=1500,
+        promotional_price=900,
+        is_featured=True,
+    )
+
+    response = client.get("/api/v1/waxing/?section=mujer")
+    assert response.status_code == 200
+
+    category_items = response.data["sections_by_gender"]["mujer"]["categories"][0]["items"]
+    assert [item["name"] for item in category_items] == ["Area promo 900", "Area base 1000"]
+    assert [item["price"] for item in category_items] == [900, 1000]
+
+    featured_items = response.data["featured_by_gender"]["mujer"]
+    assert [item["name"] for item in featured_items] == ["Area promo 900", "Area base 1000"]
+    assert [item["price"] for item in featured_items] == [900, 1000]
 
 
 @pytest.mark.django_db

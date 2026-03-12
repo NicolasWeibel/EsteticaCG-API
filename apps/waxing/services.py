@@ -13,6 +13,14 @@ def image_url(image_field):
     return None
 
 
+def _price_pair(item):
+    base_price = item.price
+    effective_price = (
+        item.promotional_price if item.promotional_price is not None else base_price
+    )
+    return effective_price, base_price
+
+
 def sort_items(items: Iterable, sort_key: str):
     items_list = list(items)
     if sort_key == SortOption.MANUAL:
@@ -25,11 +33,14 @@ def sort_items(items: Iterable, sort_key: str):
             ),
         )
     if sort_key == SortOption.PRICE_ASC:
-        return sorted(items_list, key=lambda obj: (obj.price, (obj.name or "").lower()))
+        return sorted(
+            items_list,
+            key=lambda obj: (_price_pair(obj)[0], (obj.name or "").lower()),
+        )
     if sort_key == SortOption.PRICE_DESC:
         return sorted(
             items_list,
-            key=lambda obj: (-obj.price, (obj.name or "").lower()),
+            key=lambda obj: (-_price_pair(obj)[0], (obj.name or "").lower()),
         )
     if sort_key == SortOption.AZ:
         return sorted(items_list, key=lambda obj: (obj.name or "").lower())
@@ -46,14 +57,15 @@ def sort_items(items: Iterable, sort_key: str):
 
 
 def serialize_area(area: Area, show_prices: bool = True):
+    effective_price, base_price = _price_pair(area)
     return {
         "kind": "area",
         "id": area.id,
         "section_id": area.section_id,
         "category_id": area.category_id,
         "name": area.name,
-        "price": area.price if show_prices else None,
-        "promotional_price": area.promotional_price if show_prices else None,
+        "price": effective_price if show_prices else None,
+        "price_without_discount": base_price if show_prices else None,
         "duration": area.duration,
         "short_description": area.short_description,
         "description": area.description,
@@ -64,13 +76,14 @@ def serialize_area(area: Area, show_prices: bool = True):
 
 
 def serialize_pack(pack: Pack, show_prices: bool = True):
+    effective_price, base_price = _price_pair(pack)
     return {
         "kind": "pack",
         "id": pack.id,
         "section_id": pack.section_id,
         "name": pack.name,
-        "price": pack.price if show_prices else None,
-        "promotional_price": pack.promotional_price if show_prices else None,
+        "price": effective_price if show_prices else None,
+        "price_without_discount": base_price if show_prices else None,
         "duration": pack.duration,
         "short_description": pack.short_description,
         "description": pack.description,
@@ -164,11 +177,14 @@ def sort_featured_items(section, sort_key: str):
         ]
 
     if sort_key == SortOption.PRICE_ASC:
-        return sorted(mixed, key=lambda data: (data[1].price, (data[1].name or "").lower()))
+        return sorted(
+            mixed,
+            key=lambda data: (_price_pair(data[1])[0], (data[1].name or "").lower()),
+        )
     if sort_key == SortOption.PRICE_DESC:
         return sorted(
             mixed,
-            key=lambda data: (-data[1].price, (data[1].name or "").lower()),
+            key=lambda data: (-_price_pair(data[1])[0], (data[1].name or "").lower()),
         )
     if sort_key == SortOption.ZA:
         return sorted(mixed, key=lambda data: (data[1].name or "").lower(), reverse=True)
