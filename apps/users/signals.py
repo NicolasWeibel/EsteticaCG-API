@@ -24,6 +24,7 @@ def handle_social_account_added(request, sociallogin, **kwargs):
         first_name=first_name,
         last_name=last_name,
         google_avatar_url=avatar_url,
+        sync_google_profile_name=True,
     )
 
 
@@ -38,4 +39,5 @@ def handle_social_account_updated(request, sociallogin, **kwargs):
         first_name=first_name,
         last_name=last_name,
         google_avatar_url=avatar_url,
+        sync_google_profile_name=True,
     )

@@ -185,18 +185,26 @@ def ensure_client_for_user(
     first_name: str | None = None,
     last_name: str | None = None,
     google_avatar_url: str | None = None,
+    sync_google_profile_name: bool = False,
 ):
     client = Client.objects.select_for_update().filter(user=user).first()
     normalized_email = normalize_email(email or user.email)
+    google_name_updates = {"email": normalized_email, "google_avatar_url": google_avatar_url}
+    should_sync_google_name = bool(
+        sync_google_profile_name
+        and (
+            not client
+            or client.google_profile_sync_enabled
+            or not (client.first_name or client.last_name)
+        )
+    )
+    if should_sync_google_name:
+        google_name_updates["first_name"] = first_name
+        google_name_updates["last_name"] = last_name
+        google_name_updates["google_profile_sync_enabled"] = True
 
     if client:
-        _apply_updates(
-            client,
-            email=normalized_email,
-            first_name=first_name,
-            last_name=last_name,
-            google_avatar_url=google_avatar_url,
-        )
+        _apply_updates(client, **google_name_updates)
         return client
 
     guest_client = (
@@ -207,13 +215,18 @@ def ensure_client_for_user(
     )
     if guest_client:
         guest_client.user = user
-        _apply_updates(
-            guest_client,
-            email=normalized_email,
-            first_name=first_name,
-            last_name=last_name,
-            google_avatar_url=google_avatar_url,
-        )
+        if sync_google_profile_name and (
+            guest_client.google_profile_sync_enabled
+            or not (guest_client.first_name or guest_client.last_name)
+        ):
+            google_name_updates["first_name"] = first_name
+            google_name_updates["last_name"] = last_name
+            google_name_updates["google_profile_sync_enabled"] = True
+        else:
+            google_name_updates.pop("first_name", None)
+            google_name_updates.pop("last_name", None)
+            google_name_updates.pop("google_profile_sync_enabled", None)
+        _apply_updates(guest_client, **google_name_updates)
         guest_client.save()
         return guest_client
 
@@ -223,6 +236,7 @@ def ensure_client_for_user(
         first_name=_clean_value(first_name) or "",
         last_name=_clean_value(last_name) or "",
         google_avatar_url=_clean_value(google_avatar_url) or "",
+        google_profile_sync_enabled=sync_google_profile_name,
     )
 
 
@@ -233,6 +247,8 @@ def update_client_profile(*, user, data: dict):
     normalized_email = normalize_email(user.email)
 
     client = ensure_client_for_user(user=user, email=normalized_email)
+    if "first_name" in payload or "last_name" in payload:
+        payload["google_profile_sync_enabled"] = False
     incoming_dni = _clean_value(payload.get("dni"))
     if incoming_dni is not None:
         payload["dni"] = incoming_dni

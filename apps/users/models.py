@@ -68,6 +68,7 @@ class Client(models.Model):
         upload_to="clients/avatars/", blank=True, null=True
     )
     birth_date = models.DateField(null=True, blank=True)
+    google_profile_sync_enabled = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
