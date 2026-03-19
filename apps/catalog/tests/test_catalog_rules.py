@@ -775,6 +775,61 @@ def test_combo_admin_form_rejects_activate_with_inactive_treatment():
 
 
 @pytest.mark.django_db
+def test_combo_admin_form_rejects_activate_with_inactive_treatment_using_related_name_prefixes():
+    category = _make_category()
+    zone = _make_zone(category)
+    treatment = _make_treatment(category, is_active=False)
+    tzc = TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone,
+        duration=30,
+        price=100,
+    )
+    combo = _make_combo(category, is_active=False, sessions=1)
+    ingredient = ComboIngredient.objects.create(combo=combo, treatment_zone_config=tzc)
+    session_item = ComboSessionItem.objects.create(
+        combo=combo, session_index=1, ingredient=ingredient
+    )
+
+    form = ComboAdminForm(
+        instance=combo,
+        data={
+            "slug": combo.slug,
+            "title": combo.title,
+            "category": str(combo.category_id),
+            "price": str(combo.price),
+            "sessions": str(combo.sessions),
+            "min_session_interval_days": str(combo.min_session_interval_days),
+            "session_freq": combo.session_freq,
+            "session_interval": str(combo.session_interval),
+            "occurrences_per_period": str(combo.occurrences_per_period),
+            "order": str(combo.order),
+            "is_active": "on",
+            "ingredients-TOTAL_FORMS": "1",
+            "ingredients-INITIAL_FORMS": "1",
+            "ingredients-MIN_NUM_FORMS": "0",
+            "ingredients-MAX_NUM_FORMS": "1000",
+            "ingredients-0-id": str(ingredient.id),
+            "ingredients-0-combo": str(combo.id),
+            "ingredients-0-treatment_zone_config": str(
+                ingredient.treatment_zone_config_id
+            ),
+            "session_items-TOTAL_FORMS": "1",
+            "session_items-INITIAL_FORMS": "1",
+            "session_items-MIN_NUM_FORMS": "0",
+            "session_items-MAX_NUM_FORMS": "1000",
+            "session_items-0-id": str(session_item.id),
+            "session_items-0-combo": str(combo.id),
+            "session_items-0-session_index": str(session_item.session_index),
+            "session_items-0-ingredient": str(ingredient.id),
+        },
+    )
+
+    assert form.is_valid() is False
+    assert "is_active" in form.errors
+
+
+@pytest.mark.django_db
 def test_combo_admin_form_allows_inactive_with_inactive_treatment():
     category = _make_category()
     zone = _make_zone(category)
@@ -956,3 +1011,30 @@ def test_treatment_admin_form_rejects_active_without_zone_configs():
 
     assert form.is_valid() is False
     assert "__all__" in form.errors
+
+
+@pytest.mark.django_db
+def test_treatment_admin_form_allows_active_with_related_name_zone_prefix():
+    category = _make_category()
+    zone = _make_zone(category)
+    form = TreatmentAdminForm(
+        data={
+            "slug": _uid("treat-slug"),
+            "title": _uid("Treatment"),
+            "category": str(category.id),
+            "is_active": "on",
+            "requires_zones": "on",
+            "order": "0",
+            "zone_configs-TOTAL_FORMS": "1",
+            "zone_configs-INITIAL_FORMS": "0",
+            "zone_configs-MIN_NUM_FORMS": "0",
+            "zone_configs-MAX_NUM_FORMS": "1000",
+            "zone_configs-0-zone": str(zone.id),
+            "zone_configs-0-duration": "30",
+            "zone_configs-0-price": "100",
+            "zone_configs-0-promotional_price": "",
+            "zone_configs-0-body_position": "",
+        }
+    )
+
+    assert form.is_valid() is True

@@ -17,7 +17,7 @@ from .item_content_inlines import (
 from .incompatibility import IncompatibilityInline, IncompatibilityInlineReverse
 from .mixins import CloudinaryMediaAdminMixin  # ?? Importamos
 from ..services.validation import validate_treatment_rules
-from .utils import get_formset_total, is_inline_deleted
+from .utils import get_formset_total, is_inline_deleted, resolve_inline_prefix
 from ..utils.media import build_media_url
 
 
@@ -40,7 +40,11 @@ class TreatmentAdminForm(forms.ModelForm):
             self.instance.requires_zones if self.instance else False,
         )
 
-        zone_prefix = f"{TreatmentZoneConfig._meta.model_name}_set"
+        zone_prefix = resolve_inline_prefix(
+            self.data,
+            TreatmentZoneConfig,
+            "treatment",
+        )
         zone_total = get_formset_total(self.data, zone_prefix)
         has_zones = False
         for idx in range(zone_total):

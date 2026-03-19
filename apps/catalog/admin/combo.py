@@ -22,7 +22,7 @@ from ..services.validation import (
     validate_optional_gt_zero_or_null,
 )
 from ..services.combo_sessions import prune_session_items_for_sessions
-from .utils import get_formset_total, is_inline_deleted
+from .utils import get_formset_total, is_inline_deleted, resolve_inline_prefix
 from ..utils.media import build_media_url
 
 
@@ -49,7 +49,11 @@ class ComboAdminForm(forms.ModelForm):
             self.instance.duration if self.instance else None,
         )
 
-        ingredient_prefix = f"{ComboIngredient._meta.model_name}_set"
+        ingredient_prefix = resolve_inline_prefix(
+            self.data,
+            ComboIngredient,
+            "combo",
+        )
         ingredient_total = get_formset_total(self.data, ingredient_prefix)
         ingredient_ids = []
         treatment_zone_config_ids = []
@@ -66,7 +70,11 @@ class ComboAdminForm(forms.ModelForm):
             else:
                 ingredient_ids.append(f"__new__{idx}")
 
-        session_prefix = f"{ComboSessionItem._meta.model_name}_set"
+        session_prefix = resolve_inline_prefix(
+            self.data,
+            ComboSessionItem,
+            "combo",
+        )
         session_total = get_formset_total(self.data, session_prefix)
         existing_session_indices = {}
         if self.instance and self.instance.pk:
