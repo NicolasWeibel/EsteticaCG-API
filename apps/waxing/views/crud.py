@@ -38,7 +38,7 @@ class WaxingSettingsViewSet(viewsets.ModelViewSet):
 
 
 class SectionViewSet(viewsets.ModelViewSet):
-    queryset = Section.objects.all().order_by("name")
+    queryset = Section.objects.all().order_by("-created_at")
     serializer_class = SectionSerializer
     permission_classes = [IsAdminOrReadOnly]
 

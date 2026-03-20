@@ -15,7 +15,7 @@ class Section(TimeStampedUUIDModel):
     )
 
     class Meta:
-        ordering = ("name",)
+        ordering = ("-created_at",)
 
     def __str__(self):
         return self.name

@@ -42,7 +42,7 @@ class WaxingPublicView(APIView):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
-        sections = list(Section.objects.filter(is_active=True).order_by("name"))
+        sections = list(Section.objects.filter(is_active=True).order_by("-created_at"))
         section_names = [section.name for section in sections]
 
         payload = {
@@ -54,12 +54,16 @@ class WaxingPublicView(APIView):
         }
 
         show_prices = True if settings_obj is None else settings_obj.show_prices
-        featured_enabled = True if settings_obj is None else settings_obj.featured_enabled
+        featured_enabled = (
+            True if settings_obj is None else settings_obj.featured_enabled
+        )
         public_visible = True if settings_obj is None else settings_obj.public_visible
 
         for section in sections:
             section_name = section.name
-            if (selected_section and selected_section != section_name) or not public_visible:
+            if (
+                selected_section and selected_section != section_name
+            ) or not public_visible:
                 payload["sections_by_gender"][section_name] = {}
                 payload["featured_by_gender"][section_name] = []
                 continue
@@ -104,9 +108,13 @@ class WaxingPublicView(APIView):
             if featured_enabled:
                 for kind, item in sort_featured_items(section, section.featured_sort):
                     if kind == "area":
-                        featured_items.append(serialize_area(item, show_prices=show_prices))
+                        featured_items.append(
+                            serialize_area(item, show_prices=show_prices)
+                        )
                     else:
-                        featured_items.append(serialize_pack(item, show_prices=show_prices))
+                        featured_items.append(
+                            serialize_pack(item, show_prices=show_prices)
+                        )
             payload["featured_by_gender"][section_name] = featured_items
 
         if selected_section and selected_section not in payload["sections_by_gender"]:
@@ -164,7 +172,9 @@ class WaxingPublicView(APIView):
                     "detail": item.detail,
                     "order": item.order,
                 }
-                for item in content.recommendations.filter(is_active=True).order_by("order")
+                for item in content.recommendations.filter(is_active=True).order_by(
+                    "order"
+                )
             ],
             "faqs": [
                 {

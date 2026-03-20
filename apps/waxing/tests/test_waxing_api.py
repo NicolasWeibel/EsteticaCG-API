@@ -232,7 +232,8 @@ def test_public_summary_endpoint_contract():
 
     content.title = "Landing Waxing"
     content.short_description = "Resumen corto de waxing."
-    content.save(update_fields=["title", "short_description"])
+    content.description = "Descripcion completa de waxing."
+    content.save(update_fields=["title", "short_description", "description"])
 
     response = client.get("/api/v1/waxing/summary/")
     assert response.status_code == 200
@@ -591,6 +592,25 @@ def test_public_endpoint_supports_more_than_two_sections():
         "hombre",
         "adolescente",
     }
+
+
+@pytest.mark.django_db
+def test_sections_are_ordered_by_creation_date_in_public_and_crud():
+    client = APIClient()
+    newest = _create_section("zeta")
+    oldest = _create_section("alfa")
+
+    now = timezone.now()
+    Section.objects.filter(pk=oldest.pk).update(created_at=now - timedelta(hours=2))
+    Section.objects.filter(pk=newest.pk).update(created_at=now - timedelta(hours=1))
+
+    public_response = client.get("/api/v1/waxing/")
+    assert public_response.status_code == 200
+    assert public_response.data["genders"] == ["zeta", "alfa"]
+
+    crud_response = client.get("/api/v1/waxing/sections/")
+    assert crud_response.status_code == 200
+    assert [item["name"] for item in crud_response.data["results"]] == ["zeta", "alfa"]
 
 
 @pytest.mark.django_db
