@@ -14,6 +14,7 @@ from ..models import (
     ItemFAQ,
 )
 from ..services.pricing import effective_price_for_combo
+from ..services.uniqueness import validate_item_uniqueness
 from ..services.combo_sessions import (
     prune_session_items_for_sessions,
     serialize_session_items_for_validation,
@@ -110,14 +111,21 @@ class ComboSerializer(GenericItemContentSyncMixin, MediaUploadMixin, UUIDSeriali
         fields = "__all__"
 
     def validate(self, attrs):
-        if not self.instance or "slug" in attrs:
-            slug = attrs.get("slug")
-            if not slug and self.instance:
-                slug = self.instance.slug
-            if slug and Treatment.objects.filter(slug=slug).exists():
-                raise serializers.ValidationError(
-                    {"slug": "El slug ya está en uso por un tratamiento."}
-                )
+        category = attrs.get(
+            "category",
+            self.instance.category_id if self.instance else None,
+        )
+        slug = attrs.get("slug", self.instance.slug if self.instance else None)
+        title = attrs.get("title", self.instance.title if self.instance else None)
+        validate_item_uniqueness(
+            model=Combo,
+            category=category,
+            slug=slug,
+            title=title,
+            exclude_pk=self.instance.pk if self.instance else None,
+            cross_model=Treatment,
+            error_cls=serializers.ValidationError,
+        )
         is_active = attrs.get(
             "is_active",
             self.instance.is_active if self.instance else True,

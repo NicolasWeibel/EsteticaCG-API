@@ -1,11 +1,13 @@
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models.functions import Lower
 from django.db.models.signals import m2m_changed
 from django.dispatch import receiver
 from .item_base import ItemBase
 from .filters import Technique, Objective, Intensity
 from .base import TimeStampedUUIDModel
+from ..services.uniqueness import uniqueness_message
 
 
 class Combo(ItemBase):
@@ -47,7 +49,20 @@ class Combo(ItemBase):
     rules = models.JSONField(default=dict, blank=True)
 
     class Meta:
+        indexes = [*ItemBase.Meta.indexes]
         constraints = [
+            models.UniqueConstraint(
+                Lower("slug"),
+                "category",
+                name="uq_combo_slug_category_ci",
+                violation_error_message=uniqueness_message("Combo", "slug"),
+            ),
+            models.UniqueConstraint(
+                Lower("title"),
+                "category",
+                name="uq_combo_title_category_ci",
+                violation_error_message=uniqueness_message("Combo", "title"),
+            ),
             models.CheckConstraint(
                 condition=models.Q(price__gt=0), name="ck_combo_price_gt_0"
             ),

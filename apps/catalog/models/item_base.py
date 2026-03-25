@@ -6,8 +6,8 @@ from ..utils.html import sanitize_html
 
 
 class ItemBase(TimeStampedUUIDModel):
-    slug = models.SlugField(max_length=120, unique=True)
-    title = models.CharField(max_length=200, unique=True)
+    slug = models.SlugField(max_length=120)
+    title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     short_description = models.CharField(max_length=255, blank=True)
     seo_title = models.CharField(max_length=70, blank=True)

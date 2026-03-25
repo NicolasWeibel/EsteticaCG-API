@@ -5,10 +5,12 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.html import format_html
 
 from ..models import (
+    Combo,
     Treatment,
     TreatmentZoneConfig,
     TreatmentMedia,
 )
+from .uniqueness import PerCategoryUniquenessFormMixin
 from .item_content_inlines import (
     ItemBenefitInline,
     ItemFAQInline,
@@ -21,7 +23,9 @@ from .utils import get_formset_total, is_inline_deleted, resolve_inline_prefix
 from ..utils.media import build_media_url
 
 
-class TreatmentAdminForm(forms.ModelForm):
+class TreatmentAdminForm(PerCategoryUniquenessFormMixin, forms.ModelForm):
+    cross_uniqueness_model = Combo
+
     class Meta:
         model = Treatment
         fields = "__all__"
@@ -54,6 +58,17 @@ class TreatmentAdminForm(forms.ModelForm):
             if zone_val:
                 has_zones = True
                 break
+
+        try:
+            self.validate_per_category_uniqueness(cleaned)
+        except DjangoValidationError as exc:
+            if hasattr(exc, "message_dict"):
+                for field, messages in exc.message_dict.items():
+                    target = field if field in self.fields else None
+                    for message in messages:
+                        self.add_error(target, message)
+            else:
+                self.add_error(None, exc)
 
         try:
             validate_treatment_rules(

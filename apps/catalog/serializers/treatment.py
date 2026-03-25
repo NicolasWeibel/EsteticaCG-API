@@ -14,6 +14,7 @@ from ..models import (
     ItemFAQ,
 )
 from ..services.pricing import effective_price_for_treatment
+from ..services.uniqueness import validate_item_uniqueness
 from ..services.validation import validate_treatment_rules
 from ..utils.gallery import reorder_gallery
 from .gallery import TreatmentMediaSerializer
@@ -86,14 +87,21 @@ class TreatmentSerializer(
         fields = "__all__"
 
     def validate(self, attrs):
-        if not self.instance or "slug" in attrs:
-            slug = attrs.get("slug")
-            if not slug and self.instance:
-                slug = self.instance.slug
-            if slug and Combo.objects.filter(slug=slug).exists():
-                raise serializers.ValidationError(
-                    {"slug": "El slug ya está en uso por un combo."}
-                )
+        category = attrs.get(
+            "category",
+            self.instance.category_id if self.instance else None,
+        )
+        slug = attrs.get("slug", self.instance.slug if self.instance else None)
+        title = attrs.get("title", self.instance.title if self.instance else None)
+        validate_item_uniqueness(
+            model=Treatment,
+            category=category,
+            slug=slug,
+            title=title,
+            exclude_pk=self.instance.pk if self.instance else None,
+            cross_model=Combo,
+            error_cls=serializers.ValidationError,
+        )
         zone_configs = attrs.get("zone_configs")
         is_active = attrs.get(
             "is_active",

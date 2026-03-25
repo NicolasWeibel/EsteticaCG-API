@@ -1,7 +1,7 @@
 from rest_framework import viewsets
-from django.shortcuts import get_object_or_404
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 
 from ..models import Combo
@@ -80,5 +80,23 @@ class ComboViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewS
 
     @action(detail=False, methods=["get"], url_path=r"by-slug/(?P<slug>[^/.]+)")
     def by_slug(self, request, slug=None):
-        combo = get_object_or_404(self.get_queryset(), slug=slug)
+        category_slug = request.query_params.get("category")
+        category_id = request.query_params.get("category_id")
+        qs = self.get_queryset().filter(slug__iexact=slug)
+        if category_slug:
+            qs = qs.filter(category__slug__iexact=category_slug)
+        elif category_id:
+            qs = qs.filter(category_id=category_id)
+        count = qs.count()
+        if count == 0:
+            raise NotFound(detail="No encontrado.")
+        if count > 1:
+            raise ValidationError(
+                {
+                    "slug": [
+                        "Hay más de un resultado para este slug. Envíe category o category_id."
+                    ]
+                }
+            )
+        combo = qs.first()
         return Response(self.get_serializer(combo).data)

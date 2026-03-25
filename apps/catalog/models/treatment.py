@@ -1,10 +1,12 @@
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models.functions import Lower
 from django.db.models.signals import m2m_changed
 from django.dispatch import receiver
 from .item_base import ItemBase
 from .filters import Technique, Objective, Intensity
 from .base import TimeStampedUUIDModel
+from ..services.uniqueness import uniqueness_message
 
 
 class Treatment(ItemBase):
@@ -13,6 +15,23 @@ class Treatment(ItemBase):
     intensities = models.ManyToManyField(Intensity, blank=True)
     # Un treatment por defecto requiere seleccionar zonas
     requires_zones = models.BooleanField(default=True)
+
+    class Meta:
+        indexes = [*ItemBase.Meta.indexes]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("slug"),
+                "category",
+                name="uq_treatment_slug_category_ci",
+                violation_error_message=uniqueness_message("Treatment", "slug"),
+            ),
+            models.UniqueConstraint(
+                Lower("title"),
+                "category",
+                name="uq_treatment_title_category_ci",
+                violation_error_message=uniqueness_message("Treatment", "title"),
+            ),
+        ]
 
 
 @receiver(m2m_changed, sender=Treatment.objectives.through)

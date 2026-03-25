@@ -302,7 +302,9 @@ def test_api_combo_rejects_slug_used_by_treatment():
     )
 
     assert resp.status_code == 400
-    assert resp.data["slug"] == ["El slug ya está en uso por un tratamiento."]
+    assert resp.data["slug"] == [
+        "Ya existe Treatment con este Slug en esta categoría."
+    ]
 
 
 @pytest.mark.django_db
@@ -332,7 +334,7 @@ def test_api_treatment_rejects_slug_used_by_combo():
     )
 
     assert resp.status_code == 400
-    assert resp.data["slug"] == ["El slug ya está en uso por un combo."]
+    assert resp.data["slug"] == ["Ya existe Combo con este Slug en esta categoría."]
 
 
 @pytest.mark.django_db

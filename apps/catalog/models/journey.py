@@ -1,6 +1,7 @@
 # apps/catalog/models/journey.py
 
 from django.db import models
+from django.db.models.functions import Lower
 from django.db.models.signals import m2m_changed
 from django.contrib.contenttypes.fields import GenericRelation
 from django.dispatch import receiver
@@ -8,6 +9,7 @@ from django.core.exceptions import ValidationError
 from .base import TimeStampedUUIDModel
 from .category import Category
 from .treatment import Treatment
+from ..services.uniqueness import uniqueness_message
 from ..utils.html import sanitize_html
 
 
@@ -21,8 +23,8 @@ class Journey(TimeStampedUUIDModel):
         OLDEST = "oldest", "Oldest"
         MANUAL = "manual", "Manual"
 
-    slug = models.SlugField(max_length=100, unique=True)
-    title = models.CharField(max_length=200, unique=True)
+    slug = models.SlugField(max_length=100)
+    title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     short_description = models.CharField(max_length=255, blank=True)
     seo_title = models.CharField(max_length=70, blank=True)
@@ -56,6 +58,26 @@ class Journey(TimeStampedUUIDModel):
         "catalog.ItemRecommendedPoint", related_query_name="journey"
     )
     faqs = GenericRelation("catalog.ItemFAQ", related_query_name="journey")
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["category", "title"]),
+            models.Index(fields=["slug"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("slug"),
+                "category",
+                name="uq_journey_slug_category_ci",
+                violation_error_message=uniqueness_message("Journey", "slug"),
+            ),
+            models.UniqueConstraint(
+                Lower("title"),
+                "category",
+                name="uq_journey_title_category_ci",
+                violation_error_message=uniqueness_message("Journey", "title"),
+            ),
+        ]
 
     def clean(self):
         super().clean()

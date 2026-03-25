@@ -609,7 +609,9 @@ def test_combo_serializer_rejects_slug_used_by_treatment():
     )
 
     assert serializer.is_valid() is False
-    assert "slug" in serializer.errors
+    assert serializer.errors["slug"] == [
+        "Ya existe Treatment con este Slug en esta categoría."
+    ]
 
 
 @pytest.mark.django_db
@@ -625,7 +627,9 @@ def test_treatment_serializer_rejects_slug_used_by_combo():
     )
 
     assert serializer.is_valid() is False
-    assert "slug" in serializer.errors
+    assert serializer.errors["slug"] == [
+        "Ya existe Combo con este Slug en esta categoría."
+    ]
 
 
 @pytest.mark.django_db

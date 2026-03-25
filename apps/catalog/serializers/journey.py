@@ -11,6 +11,7 @@ from ..models import (
     ItemFAQ,
 )
 from ..services.pricing import effective_price_for_journey
+from ..services.uniqueness import validate_item_uniqueness
 from ..utils.gallery import reorder_gallery
 from .base import UUIDSerializer
 from .gallery import JourneyMediaSerializer
@@ -72,6 +73,23 @@ class JourneySerializer(GenericItemContentSyncMixin, MediaUploadMixin, UUIDSeria
     class Meta:
         model = Journey
         fields = "__all__"
+
+    def validate(self, attrs):
+        category = attrs.get(
+            "category",
+            self.instance.category_id if self.instance else None,
+        )
+        slug = attrs.get("slug", self.instance.slug if self.instance else None)
+        title = attrs.get("title", self.instance.title if self.instance else None)
+        validate_item_uniqueness(
+            model=Journey,
+            category=category,
+            slug=slug,
+            title=title,
+            exclude_pk=self.instance.pk if self.instance else None,
+            error_cls=serializers.ValidationError,
+        )
+        return attrs
 
     def get_cover_media(self, obj):
         first_media = obj.media.first()
