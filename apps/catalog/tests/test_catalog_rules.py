@@ -31,6 +31,7 @@ from apps.catalog.services.combo_sessions import (
     prune_session_items_for_sessions,
     serialize_session_items_for_validation,
 )
+from apps.catalog.services.commands import deactivate_treatments
 
 
 def _uid(prefix: str) -> str:
@@ -348,8 +349,7 @@ def test_deactivate_treatment_deactivates_related_combos_without_deleting_data()
     ingredient = ComboIngredient.objects.create(combo=combo, treatment_zone_config=tzc)
     ComboSessionItem.objects.create(combo=combo, session_index=1, ingredient=ingredient)
 
-    treatment.is_active = False
-    treatment.save(update_fields=["is_active"])
+    deactivate_treatments([treatment.id])
 
     combo.refresh_from_db()
     assert combo.is_active is False

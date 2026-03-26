@@ -14,6 +14,7 @@ from ..models import (
     ItemFAQ,
 )
 from ..services.pricing import effective_price_for_treatment
+from ..services.commands import cleanup_treatment_deactivation
 from ..services.uniqueness import validate_item_uniqueness
 from ..services.validation import validate_treatment_rules
 from ..utils.gallery import reorder_gallery
@@ -490,6 +491,7 @@ class TreatmentSerializer(
             return treatment
 
     def update(self, instance, validated_data):
+        was_active = instance.is_active
         tags = validated_data.pop("tags", None)
         benefits = validated_data.pop("benefits", None)
         recommended_points = validated_data.pop("recommended_points", None)
@@ -547,6 +549,8 @@ class TreatmentSerializer(
                 self._create_media(treatment, uploaded_media)
             if zone_configs is not None:
                 self._sync_zone_configs(treatment, zone_configs)
+            if was_active and not treatment.is_active:
+                cleanup_treatment_deactivation([treatment.id])
         if ordered_media_ids:
             reorder_gallery(treatment, ordered_media_ids)
         return treatment

@@ -18,6 +18,7 @@ from .item_content_inlines import (
 )
 from .incompatibility import IncompatibilityInline, IncompatibilityInlineReverse
 from .mixins import CloudinaryMediaAdminMixin  # ?? Importamos
+from ..services.commands import cleanup_treatment_deactivation
 from ..services.validation import validate_treatment_rules
 from .utils import get_formset_total, is_inline_deleted, resolve_inline_prefix
 from ..utils.media import build_media_url
@@ -177,3 +178,17 @@ class TreatmentAdmin(CloudinaryMediaAdminMixin, admin.ModelAdmin):
         "intensities",
         "tags",
     )
+
+    def save_model(self, request, obj, form, change):
+        was_active = None
+        if change and obj.pk:
+            was_active = (
+                Treatment.objects.filter(id=obj.pk)
+                .values_list("is_active", flat=True)
+                .first()
+            )
+
+        super().save_model(request, obj, form, change)
+
+        if was_active is True and obj.is_active is False:
+            cleanup_treatment_deactivation([obj.id])

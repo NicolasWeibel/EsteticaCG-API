@@ -18,6 +18,7 @@ from .item_content_inlines import (
     ItemRecommendedPointInline,
 )
 from .mixins import CloudinaryMediaAdminMixin
+from ..services.commands import cleanup_combo_deactivation
 from ..services.validation import (
     validate_combo_rules,
     validate_combo_treatments_active,
@@ -253,6 +254,16 @@ class ComboAdmin(CloudinaryMediaAdminMixin, admin.ModelAdmin):
         "objectives",
         "intensities",
     )
+
+    def save_model(self, request, obj, form, change):
+        was_active = None
+        if change and obj.pk:
+            was_active = Combo.objects.filter(id=obj.pk).values_list("is_active", flat=True).first()
+
+        super().save_model(request, obj, form, change)
+
+        if was_active is True and obj.is_active is False:
+            cleanup_combo_deactivation([obj.id])
 
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)

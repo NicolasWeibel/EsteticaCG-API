@@ -255,6 +255,80 @@ def test_public_summary_endpoint_contract():
 
 
 @pytest.mark.django_db
+def test_admin_summary_endpoint_requires_staff_and_returns_full_dataset_without_pagination():
+    client = APIClient()
+    unauthorized_response = client.get("/api/v1/waxing/waxing/")
+    assert unauthorized_response.status_code in {401, 403}
+
+    staff = _staff_user()
+    client.force_authenticate(staff)
+
+    section = _create_section("mujer", is_active=False)
+    category = _create_category(section, name="Piernas", is_active=False)
+    area = _create_area(section, category, name="Axilas", is_active=False)
+    pack = _create_pack(section, name="Pack Premium", is_active=False, is_featured=True)
+    PackArea.objects.create(pack=pack, area=area, order=0)
+    FeaturedItemOrder.objects.create(
+        section=section,
+        item_kind=FeaturedItemOrder.ItemKind.PACK,
+        item_id=pack.id,
+        order=0,
+    )
+
+    content = WaxingContent.objects.order_by("-created_at").first()
+    content.title = "Contenido admin"
+    content.save(update_fields=["title"])
+    benefit = content.benefits.create(
+        title="Beneficio admin",
+        detail="Detalle",
+        order=0,
+        is_active=False,
+    )
+    recommendation = content.recommendations.create(
+        title="Recomendacion admin",
+        detail="Detalle",
+        order=0,
+        is_active=False,
+    )
+    faq = content.faqs.create(
+        question="Pregunta admin",
+        answer="Respuesta admin",
+        order=0,
+        is_active=False,
+    )
+
+    response = client.get("/api/v1/waxing/waxing/")
+    assert response.status_code == 200
+    assert set(response.data.keys()) == {
+        "settings",
+        "sections",
+        "area_categories",
+        "areas",
+        "packs",
+        "pack_areas",
+        "featured_orders",
+        "content",
+        "benefits",
+        "recommendations",
+        "faqs",
+    }
+    assert "results" not in response.data
+    assert any(item["id"] == str(section.id) for item in response.data["sections"])
+    assert any(item["id"] == str(category.id) for item in response.data["area_categories"])
+    assert any(item["id"] == str(area.id) for item in response.data["areas"])
+    assert any(item["id"] == str(pack.id) for item in response.data["packs"])
+    assert any(item["id"] == str(benefit.id) for item in response.data["benefits"])
+    assert any(
+        item["id"] == str(recommendation.id)
+        for item in response.data["recommendations"]
+    )
+    assert any(item["id"] == str(faq.id) for item in response.data["faqs"])
+    content_rows = {item["id"]: item for item in response.data["content"]}
+    assert content_rows[str(content.id)]["title"] == "Contenido admin"
+    assert any(item["id"] == str(benefit.id) for item in content_rows[str(content.id)]["benefits"])
+
+
+@pytest.mark.django_db
 def test_public_rejects_gender_query_param():
     client = APIClient()
     _create_section("mujer")

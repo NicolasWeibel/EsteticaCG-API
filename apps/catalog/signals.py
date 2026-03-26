@@ -5,7 +5,6 @@ from django.db.models.signals import (
     post_delete,
     post_save,
     pre_delete,
-    pre_save,
 )
 from django.dispatch import receiver
 import cloudinary.uploader
@@ -21,11 +20,18 @@ from .models import (
     ComboIngredient,
     ComboSessionItem,
 )
+from .models.placement import PlacementItem
+from .services.commands import (
+    cleanup_combo_deactivation,
+    deactivate_empty_combo,
+    deactivate_combos as service_deactivate_combos,
+    deactivate_treatments as service_deactivate_treatments,
+    remove_items_from_placements,
+)
 
 
 _tzc_delete_state = threading.local()
 _addons_state = threading.local()
-_treatment_state = threading.local()
 
 
 def _get_tzc_combo_map():
@@ -44,21 +50,11 @@ def _get_addon_map():
     return treatment_map
 
 
-def _get_treatment_active_map():
-    state_map = getattr(_treatment_state, "active_map", None)
-    if state_map is None:
-        state_map = {}
-        _treatment_state.active_map = state_map
-    return state_map
-
-
 def _get_affected_combo_ids_by_treatments(treatment_ids, journey_id=None):
     ids = [treatment_id for treatment_id in (treatment_ids or []) if treatment_id]
     if not ids:
         return set()
-    qs = ComboIngredient.objects.filter(
-        treatment_zone_config__treatment_id__in=ids
-    )
+    qs = ComboIngredient.objects.filter(treatment_zone_config__treatment_id__in=ids)
     if journey_id is not None:
         qs = qs.filter(combo__journey_id=journey_id)
     return set(qs.values_list("combo_id", flat=True))
@@ -68,19 +64,30 @@ def _delete_ingredients_by_treatments(treatment_ids, journey_id=None):
     ids = [treatment_id for treatment_id in (treatment_ids or []) if treatment_id]
     if not ids:
         return
-    qs = ComboIngredient.objects.filter(
-        treatment_zone_config__treatment_id__in=ids
-    )
+    qs = ComboIngredient.objects.filter(treatment_zone_config__treatment_id__in=ids)
     if journey_id is not None:
         qs = qs.filter(combo__journey_id=journey_id)
     qs.delete()
 
 
 def _deactivate_combos(combo_ids):
-    ids = [combo_id for combo_id in (combo_ids or []) if combo_id]
-    if not ids:
-        return
-    Combo.objects.filter(id__in=ids).update(is_active=False)
+    """
+    Deactivate combos by delegating to the service layer.
+
+    This wrapper exists to keep signal orchestration thin while the explicit
+    deactivation behavior lives in the service layer.
+    """
+    service_deactivate_combos(combo_ids)
+
+
+def _deactivate_treatments(treatment_ids):
+    """
+    Deactivate treatments by delegating to the service layer.
+
+    This wrapper exists to keep signal orchestration thin while the explicit
+    deactivation behavior lives in the service layer.
+    """
+    service_deactivate_treatments(treatment_ids)
 
 
 @receiver(post_save, sender=TreatmentZoneConfig)
@@ -109,6 +116,7 @@ def purge_invalid_incompatibilities(sender, instance: TreatmentZoneConfig, **kwa
 # =========================
 # Galería: cleanup + orden
 # =========================
+
 
 def delete_cloudinary_file(media_field, media_type=None):
     if media_field:
@@ -160,17 +168,9 @@ def _compact_combo_sessions(combo_id):
     if not combo:
         return
 
-    ingredients_exist = ComboIngredient.objects.filter(
-        combo_id=combo_id
-    ).exists()
+    ingredients_exist = ComboIngredient.objects.filter(combo_id=combo_id).exists()
     if not ingredients_exist:
-        updates = {}
-        if combo.is_active:
-            updates["is_active"] = False
-        if combo.sessions != 0:
-            updates["sessions"] = 0
-        if updates:
-            Combo.objects.filter(id=combo_id).update(**updates)
+        deactivate_empty_combo(combo_id)
         return
 
     items = list(
@@ -235,23 +235,20 @@ def deactivate_combos_and_treatment_on_tzc_delete(sender, instance, **kwargs):
     _deactivate_combos(combo_ids)
 
     treatment_id = instance.treatment_id
-    if treatment_id and not TreatmentZoneConfig.objects.filter(
-        treatment_id=treatment_id
-    ).exists():
-        Treatment.objects.filter(id=treatment_id).update(is_active=False)
+    if (
+        treatment_id
+        and not TreatmentZoneConfig.objects.filter(treatment_id=treatment_id).exists()
+    ):
+        _deactivate_treatments([treatment_id])
 
 
 @receiver(m2m_changed, sender=Journey.addons.through)
-def handle_journey_addons_remove(
-    sender, instance, action, reverse, pk_set, **kwargs
-):
+def handle_journey_addons_remove(sender, instance, action, reverse, pk_set, **kwargs):
     if reverse:
         return
     addon_map = _get_addon_map()
     if action == "pre_clear":
-        addon_map[instance.id] = set(
-            instance.addons.values_list("id", flat=True)
-        )
+        addon_map[instance.id] = set(instance.addons.values_list("id", flat=True))
         return
 
     removed_treatment_ids = set()
@@ -274,25 +271,21 @@ def handle_journey_addons_remove(
     _deactivate_combos(combo_ids)
 
 
-@receiver(pre_save, sender=Treatment)
-def capture_previous_treatment_active_state(sender, instance, **kwargs):
-    if not instance.pk:
-        return
-    previous_state = Treatment.objects.filter(id=instance.id).values_list(
-        "is_active", flat=True
-    ).first()
-    state_map = _get_treatment_active_map()
-    state_map[instance.id] = previous_state
+@receiver(post_delete, sender=Treatment)
+def cleanup_treatment_from_placements_on_delete(sender, instance, **kwargs):
+    """Remove deleted treatment from any placements."""
+    remove_items_from_placements(
+        PlacementItem.ItemKind.TREATMENT,
+        [instance.id],
+    )
 
 
-@receiver(post_save, sender=Treatment)
-def deactivate_combos_on_treatment_deactivation(sender, instance, created, **kwargs):
-    if created:
-        return
-    state_map = _get_treatment_active_map()
-    previous_active = state_map.pop(instance.id, None)
-    if previous_active is not True or instance.is_active:
-        return
+# =========================
+# Combo: placement cleanup
+# =========================
 
-    combo_ids = _get_affected_combo_ids_by_treatments([instance.id])
-    _deactivate_combos(combo_ids)
+
+@receiver(post_delete, sender=Combo)
+def cleanup_combo_from_placements_on_delete(sender, instance, **kwargs):
+    """Remove deleted combo from any placements."""
+    cleanup_combo_deactivation([instance.id])

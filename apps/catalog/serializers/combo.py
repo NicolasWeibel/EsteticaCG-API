@@ -14,6 +14,10 @@ from ..models import (
     ItemFAQ,
 )
 from ..services.pricing import effective_price_for_combo
+from ..services.commands import (
+    cleanup_combo_deactivation,
+    deactivate_empty_combo,
+)
 from ..services.uniqueness import validate_item_uniqueness
 from ..services.combo_sessions import (
     prune_session_items_for_sessions,
@@ -247,15 +251,10 @@ class ComboSerializer(GenericItemContentSyncMixin, MediaUploadMixin, UUIDSeriali
 
         combo.session_items.all().delete()
 
-        update_fields = []
-        if combo.is_active:
+        if combo.is_active or combo.sessions != 0:
+            deactivate_empty_combo(combo.id)
             combo.is_active = False
-            update_fields.append("is_active")
-        if combo.sessions != 0:
             combo.sessions = 0
-            update_fields.append("sessions")
-        if update_fields:
-            combo.save(update_fields=update_fields)
 
     def _save_session_items(self, combo, session_items):
         normalized = self._normalize_session_items(combo, session_items)
@@ -627,6 +626,7 @@ class ComboSerializer(GenericItemContentSyncMixin, MediaUploadMixin, UUIDSeriali
             return combo
 
     def update(self, instance, validated_data):
+        was_active = instance.is_active
         ingredients_provided = "ingredients" in self.initial_data
         tags = validated_data.pop("tags", None)
         benefits = validated_data.pop("benefits", None)
@@ -702,6 +702,8 @@ class ComboSerializer(GenericItemContentSyncMixin, MediaUploadMixin, UUIDSeriali
                     ComboSessionItem.objects.filter(combo_id=instance.id)
                 )
                 self._validate_session_items(instance, existing_items)
+            if was_active and not instance.is_active:
+                cleanup_combo_deactivation([instance.id])
             if ordered_media_ids:
                 reorder_gallery(combo, ordered_media_ids)
             return combo

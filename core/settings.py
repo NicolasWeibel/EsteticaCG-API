@@ -13,6 +13,13 @@ def _env_pattern_list(name: str) -> list[str]:
         return []
     return [item.strip() for item in str(raw).split(";") if item.strip()]
 
+
+def _env_prefix_list(name: str) -> list[str]:
+    raw = env(name, default="")
+    if not raw:
+        return []
+    return [item.strip() for item in str(raw).split(";") if item.strip()]
+
 # ── CARGAR .ENV (SEGÚN ENTORNO) ──
 ENV = os.getenv("ENV", "development")
 environ.Env.read_env(BASE_DIR / f".env.{ENV}")
@@ -55,6 +62,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "core.middleware.HealthzShortCircuitMiddleware",
+    "core.middleware.ProxySecretMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",  # 👈 Vital para el CSS en Cloud Run
@@ -73,6 +81,15 @@ CORS_ALLOWED_ORIGIN_REGEXES = _env_pattern_list("CORS_ALLOWED_ORIGIN_REGEXES")
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 CSRF_TRUSTED_ORIGIN_REGEXES = _env_pattern_list("CSRF_TRUSTED_ORIGIN_REGEXES")
+REQUIRE_PROXY_SECRET = env.bool("REQUIRE_PROXY_SECRET", default=False)
+PROXY_SHARED_SECRET = env("PROXY_SHARED_SECRET", default="")
+PROXY_SECRET_EXEMPT_PATH_PREFIXES = _env_prefix_list(
+    "PROXY_SECRET_EXEMPT_PATH_PREFIXES"
+) or [
+    "/healthz",
+    "/accounts/",
+    "/api/v1/auth/google/",
+]
 
 # Permitir cookies en entornos cruzados (Localhost <-> Cloud Run)
 # En HTTP local Chrome bloquea "SameSite=None" sin "Secure", por eso usamos "Lax" en DEBUG.
