@@ -18,9 +18,15 @@ class AutoMediaCloudinaryStorage(MediaCloudinaryStorage):
     def _upload(self, name, content):
         options = self._get_upload_options_safe(name, content)
 
-        options["public_id"] = self._build_public_id(name)
+        public_id = self._build_public_id(name)
+        options["public_id"] = public_id
         options.pop("use_filename", None)
         options.pop("unique_filename", None)
+
+        # Extract folder from public_id to create folders in Cloudinary UI
+        folder_path = posixpath.dirname(public_id)
+        if folder_path:
+            options["folder"] = folder_path
 
         media_type = detect_media_type(content)
         if media_type == "video":
@@ -49,9 +55,7 @@ class AutoMediaCloudinaryStorage(MediaCloudinaryStorage):
             if base_no_ext:
                 trimmed = base_no_ext[: max(1, len(base_no_ext) - overflow)]
                 final_name = f"{trimmed}-{suffix}"
-                public_id = (
-                    f"{dir_name}/{final_name}" if dir_name else final_name
-                )
+                public_id = f"{dir_name}/{final_name}" if dir_name else final_name
         return public_id
 
     def _get_upload_options_safe(self, name, content):

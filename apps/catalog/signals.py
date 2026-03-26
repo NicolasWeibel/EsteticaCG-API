@@ -5,6 +5,7 @@ from django.db.models.signals import (
     post_delete,
     post_save,
     pre_delete,
+    pre_save,
 )
 from django.dispatch import receiver
 import cloudinary.uploader
@@ -19,6 +20,7 @@ from .models import (
     Combo,
     ComboIngredient,
     ComboSessionItem,
+    Category,
 )
 from .models.placement import PlacementItem
 from .services.commands import (
@@ -127,6 +129,40 @@ def delete_cloudinary_file(media_field, media_type=None):
             cloudinary.uploader.destroy(media_field.name, **kwargs)
         except Exception as exc:
             print(f"Error Cloudinary: {exc}")
+
+
+def capture_old_image_for_cleanup(instance, field_name):
+    """
+    Capture old image reference before saving (pre_save).
+    Stores it temporarily so we can delete it AFTER the new one is saved successfully.
+    This prevents data loss if the new image upload fails.
+    """
+    if not instance.pk:
+        return  # New instance, no old image to delete
+
+    try:
+        old_instance = instance.__class__.objects.get(pk=instance.pk)
+        old_image = getattr(old_instance, field_name, None)
+        new_image = getattr(instance, field_name, None)
+
+        # If the image changed, store the old one for cleanup after save
+        if old_image and old_image != new_image:
+            if not hasattr(instance, "_old_images_to_cleanup"):
+                instance._old_images_to_cleanup = []
+            instance._old_images_to_cleanup.append(old_image)
+    except instance.__class__.DoesNotExist:
+        pass  # Instance doesn't exist yet, nothing to cleanup
+
+
+def cleanup_old_images_after_save(instance):
+    """
+    Delete old images from Cloudinary after new images were saved successfully (post_save).
+    Only deletes images that were captured in pre_save.
+    """
+    if hasattr(instance, "_old_images_to_cleanup"):
+        for old_image in instance._old_images_to_cleanup:
+            delete_cloudinary_file(old_image)
+        delattr(instance, "_old_images_to_cleanup")
 
 
 def reorder_siblings(queryset):
@@ -273,7 +309,9 @@ def handle_journey_addons_remove(sender, instance, action, reverse, pk_set, **kw
 
 @receiver(post_delete, sender=Treatment)
 def cleanup_treatment_from_placements_on_delete(sender, instance, **kwargs):
-    """Remove deleted treatment from any placements."""
+    """Remove deleted treatment from any placements and cleanup images."""
+    delete_cloudinary_file(instance.benefits_image)
+    delete_cloudinary_file(instance.recommended_image)
     remove_items_from_placements(
         PlacementItem.ItemKind.TREATMENT,
         [instance.id],
@@ -287,5 +325,112 @@ def cleanup_treatment_from_placements_on_delete(sender, instance, **kwargs):
 
 @receiver(post_delete, sender=Combo)
 def cleanup_combo_from_placements_on_delete(sender, instance, **kwargs):
-    """Remove deleted combo from any placements."""
+    """Remove deleted combo from any placements and cleanup images."""
+    delete_cloudinary_file(instance.benefits_image)
+    delete_cloudinary_file(instance.recommended_image)
     cleanup_combo_deactivation([instance.id])
+
+
+@receiver(post_delete, sender=Journey)
+def cleanup_journey_images_on_delete(sender, instance, **kwargs):
+    """Cleanup journey images from Cloudinary."""
+    delete_cloudinary_file(instance.benefits_image)
+    delete_cloudinary_file(instance.recommended_image)
+
+
+@receiver(post_delete, sender=Category)
+def cleanup_category_image_on_delete(sender, instance, **kwargs):
+    """Cleanup category image from Cloudinary."""
+    delete_cloudinary_file(instance.image)
+
+
+# =========================
+# Image replacement cleanup
+# =========================
+
+
+@receiver(pre_save, sender=Treatment)
+def capture_treatment_old_images(sender, instance, **kwargs):
+    """Capture old images before saving."""
+    capture_old_image_for_cleanup(instance, "benefits_image")
+    capture_old_image_for_cleanup(instance, "recommended_image")
+
+
+@receiver(post_save, sender=Treatment)
+def cleanup_treatment_old_images(sender, instance, **kwargs):
+    """Cleanup old images after new ones are saved successfully."""
+    cleanup_old_images_after_save(instance)
+
+
+@receiver(pre_save, sender=Combo)
+def capture_combo_old_images(sender, instance, **kwargs):
+    """Capture old images before saving."""
+    capture_old_image_for_cleanup(instance, "benefits_image")
+    capture_old_image_for_cleanup(instance, "recommended_image")
+
+
+@receiver(post_save, sender=Combo)
+def cleanup_combo_old_images(sender, instance, **kwargs):
+    """Cleanup old images after new ones are saved successfully."""
+    cleanup_old_images_after_save(instance)
+
+
+@receiver(pre_save, sender=Journey)
+def capture_journey_old_images(sender, instance, **kwargs):
+    """Capture old images before saving."""
+    capture_old_image_for_cleanup(instance, "benefits_image")
+    capture_old_image_for_cleanup(instance, "recommended_image")
+
+
+@receiver(post_save, sender=Journey)
+def cleanup_journey_old_images(sender, instance, **kwargs):
+    """Cleanup old images after new ones are saved successfully."""
+    cleanup_old_images_after_save(instance)
+
+
+@receiver(pre_save, sender=Category)
+def capture_category_old_image(sender, instance, **kwargs):
+    """Capture old image before saving."""
+    capture_old_image_for_cleanup(instance, "image")
+
+
+@receiver(post_save, sender=Category)
+def cleanup_category_old_image(sender, instance, **kwargs):
+    """Cleanup old image after new one is saved successfully."""
+    cleanup_old_images_after_save(instance)
+
+
+@receiver(pre_save, sender=TreatmentMedia)
+def capture_treatment_media_old(sender, instance, **kwargs):
+    """Capture old media before saving."""
+    capture_old_image_for_cleanup(instance, "media")
+
+
+@receiver(post_save, sender=TreatmentMedia)
+def cleanup_treatment_media_old(sender, instance, **kwargs):
+    """Cleanup old media after new one is saved successfully."""
+    cleanup_old_images_after_save(instance)
+
+
+@receiver(pre_save, sender=ComboMedia)
+def capture_combo_media_old(sender, instance, **kwargs):
+    """Capture old media before saving."""
+    capture_old_image_for_cleanup(instance, "media")
+
+
+@receiver(post_save, sender=ComboMedia)
+def cleanup_combo_media_old(sender, instance, **kwargs):
+    """Cleanup old media after new one is saved successfully."""
+    cleanup_old_images_after_save(instance)
+
+
+@receiver(pre_save, sender=JourneyMedia)
+def capture_journey_media_old(sender, instance, **kwargs):
+    """Capture old media before saving."""
+    capture_old_image_for_cleanup(instance, "media")
+
+
+@receiver(post_save, sender=JourneyMedia)
+def cleanup_journey_media_old(sender, instance, **kwargs):
+    """Cleanup old media after new one is saved successfully."""
+    cleanup_old_images_after_save(instance)
