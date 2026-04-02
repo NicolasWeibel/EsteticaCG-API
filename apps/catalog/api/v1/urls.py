@@ -22,6 +22,11 @@ from apps.catalog.views.filters import (
     TagViewSet,
     FiltersSummaryView,
 )
+from apps.catalog.views.upload import (
+    UploadSignatureView,
+    UploadContextsView,
+    UploadCleanupView,
+)
 
 router = DefaultRouter()
 router.register(r"treatments", TreatmentViewSet)
@@ -47,4 +52,7 @@ router.register(r"filters/tags", TagViewSet)
 urlpatterns = router.urls + [
     path("catalog/", CatalogSummaryView.as_view(), name="catalog-summary"),
     path("filters/summary/", FiltersSummaryView.as_view(), name="filters-summary"),
+    path("upload/sign/", UploadSignatureView.as_view(), name="upload-sign"),
+    path("upload/contexts/", UploadContextsView.as_view(), name="upload-contexts"),
+    path("upload/cleanup/", UploadCleanupView.as_view(), name="upload-cleanup"),
 ]

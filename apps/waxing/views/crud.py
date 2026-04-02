@@ -1,5 +1,5 @@
 from rest_framework import viewsets
-from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.parsers import JSONParser
 
 from ..models import (
     Area,
@@ -28,7 +28,6 @@ from ..serializers import (
     WaxingContentSerializer,
     WaxingSettingsSerializer,
 )
-from .mixins import MultipartJsonMixin
 
 
 class WaxingSettingsViewSet(viewsets.ModelViewSet):
@@ -85,25 +84,19 @@ class PackAreaViewSet(viewsets.ModelViewSet):
 
 
 class FeaturedItemOrderViewSet(viewsets.ModelViewSet):
-    queryset = FeaturedItemOrder.objects.select_related("section").all().order_by("order")
+    queryset = (
+        FeaturedItemOrder.objects.select_related("section").all().order_by("order")
+    )
     serializer_class = FeaturedItemOrderSerializer
     permission_classes = [IsAdminOrReadOnly]
     filterset_fields = ("section", "item_kind")
 
 
-class WaxingContentViewSet(MultipartJsonMixin, viewsets.ModelViewSet):
+class WaxingContentViewSet(viewsets.ModelViewSet):
     queryset = WaxingContent.objects.all().order_by("created_at")
     serializer_class = WaxingContentSerializer
     permission_classes = [IsAdminOrReadOnly]
-    parser_classes = (MultiPartParser, FormParser, JSONParser)
-    multipart_json_fields = [
-        "benefits",
-        "recommendations",
-        "faqs",
-        "benefits_remove_ids",
-        "recommendations_remove_ids",
-        "faqs_remove_ids",
-    ]
+    parser_classes = [JSONParser]
 
 
 class BenefitItemViewSet(viewsets.ModelViewSet):
@@ -114,7 +107,9 @@ class BenefitItemViewSet(viewsets.ModelViewSet):
 
 
 class RecommendationItemViewSet(viewsets.ModelViewSet):
-    queryset = RecommendationItem.objects.select_related("content").all().order_by("order")
+    queryset = (
+        RecommendationItem.objects.select_related("content").all().order_by("order")
+    )
     serializer_class = RecommendationItemSerializer
     permission_classes = [IsAdminOrReadOnly]
     filterset_fields = ("content", "is_active")

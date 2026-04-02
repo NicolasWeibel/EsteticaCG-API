@@ -1,4 +1,10 @@
-import json
+"""
+Journey serializers with JSON-only Cloudinary media support.
+
+This module has been migrated to accept only JSON requests with Cloudinary
+asset references instead of multipart file uploads.
+"""
+
 from django.db import transaction
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
@@ -12,7 +18,7 @@ from ..models import (
 )
 from ..services.pricing import effective_price_for_journey
 from ..services.uniqueness import validate_item_uniqueness
-from ..utils.gallery import reorder_gallery
+from ..services.cloudinary_assets import CATALOG_MEDIA_PREFIXES, CATALOG_IMAGE_PREFIXES
 from .base import UUIDSerializer
 from .gallery import JourneyMediaSerializer
 from .item_content import (
@@ -21,12 +27,23 @@ from .item_content import (
     ItemFAQSerializer,
 )
 from .item_content_sync import GenericItemContentSyncMixin
-from .media import MediaUploadMixin
-from .utils import clean_uploaded_media, parse_json_list
+from .cloudinary_mixin import CloudinaryMediaMixin
+from .utils import parse_json_list
 from ..utils.media import build_media_url
 
 
-class JourneySerializer(GenericItemContentSyncMixin, MediaUploadMixin, UUIDSerializer):
+class JourneySerializer(
+    GenericItemContentSyncMixin, CloudinaryMediaMixin, UUIDSerializer
+):
+    """
+    Journey serializer with JSON-only Cloudinary media support.
+
+    Media handling:
+    - Use `media_items` to manage gallery (create, reorder, delete)
+    - Use `benefits_image_ref` and `recommended_image_ref` for single images
+    - All media references must be Cloudinary public_ids from signed uploads
+    """
+
     media = JourneyMediaSerializer(many=True, read_only=True)
     benefits = ItemBenefitSerializer(many=True, required=False)
     recommended_points = ItemRecommendedPointSerializer(many=True, required=False)
@@ -34,26 +51,33 @@ class JourneySerializer(GenericItemContentSyncMixin, MediaUploadMixin, UUIDSeria
     cover_media = serializers.SerializerMethodField()
     effective_price = serializers.SerializerMethodField()
     kind = serializers.SerializerMethodField()
-    uploaded_media = serializers.ListField(
-        child=serializers.FileField(allow_empty_file=False, use_url=False),
-        write_only=True,
-        required=False,
-    )
-    removed_media_ids = serializers.ListField(
-        child=serializers.UUIDField(),
-        write_only=True,
-        required=False,
-    )
-    ordered_media_ids = serializers.ListField(
-        child=serializers.UUIDField(),
-        write_only=True,
-        required=False,
-    )
-    media_order = serializers.ListField(
+
+    # JSON-only media fields
+    media_items = serializers.ListField(
         child=serializers.DictField(),
         write_only=True,
         required=False,
+        help_text=(
+            "Complete ordered gallery list. Format: "
+            "[{'id': 'uuid'}, {'public_id': '...', 'resource_type': 'image|video'}, "
+            "{'id': 'uuid', 'remove': true}]. Existing items omitted from the list "
+            "are removed. Order in array determines final display order."
+        ),
     )
+    benefits_image_ref = serializers.JSONField(
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text="Cloudinary ref: {'public_id': '...'} or string, or null to clear",
+    )
+    recommended_image_ref = serializers.JSONField(
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text="Cloudinary ref: {'public_id': '...'} or string, or null to clear",
+    )
+
+    # Removal fields for nested content
     benefits_remove_ids = serializers.ListField(
         child=serializers.UUIDField(),
         write_only=True,
@@ -103,25 +127,28 @@ class JourneySerializer(GenericItemContentSyncMixin, MediaUploadMixin, UUIDSeria
     def get_kind(self, obj):
         return "journey"
 
-    def _create_media(self, journey, media):
-        start = journey.media.count()
-        to_create = []
-        for index, media_file in enumerate(media, start=start):
-            media_type = self._media_type_for_file(media_file)
-            to_create.append(
-                JourneyMedia(
-                    journey=journey,
-                    media=media_file,
-                    media_type=media_type,
-                    order=index,
-                )
-            )
-        if to_create:
-            JourneyMedia.objects.bulk_create(to_create)
+    def _apply_media_items(self, journey, media_items):
+        """
+        Process media_items list with Cloudinary references.
+
+        Supports:
+        - {"id": "uuid"} - Keep existing media at this position
+        - {"id": "uuid", "remove": true} - Delete existing media
+        - {"public_id": "...", "resource_type": "image|video"} - Add new media
+        - {"public_id": "...", "resource_type": "...", "alt_text": "..."} - With alt text
+        """
+        self._process_media_list(
+            media_items=media_items,
+            parent=journey,
+            media_model=JourneyMedia,
+            parent_field="journey",
+            allowed_prefixes=CATALOG_MEDIA_PREFIXES,
+        )
 
     def to_internal_value(self, data):
-        mutable = data.copy()
-        media_order = mutable.get("media_order")
+        mutable = data.copy() if hasattr(data, "copy") else dict(data)
+
+        # Parse JSON string fields if needed (for form-data compatibility during transition)
         if "benefits" in mutable:
             mutable["benefits"] = parse_json_list(
                 mutable.get("benefits"), "benefits", ValidationError
@@ -149,123 +176,12 @@ class JourneySerializer(GenericItemContentSyncMixin, MediaUploadMixin, UUIDSeria
             mutable["faqs_remove_ids"] = self._parse_id_list(
                 mutable.get("faqs_remove_ids"), "faqs_remove_ids"
             )
-        if "uploaded_media" in mutable:
-            cleaned = clean_uploaded_media(mutable.get("uploaded_media"))
-            if cleaned is None:
-                mutable.pop("uploaded_media", None)
-            else:
-                if hasattr(mutable, "setlist"):
-                    mutable.setlist("uploaded_media", cleaned)
-                else:
-                    mutable["uploaded_media"] = cleaned
-        if media_order is not None:
-            parsed_order = self._parse_media_order(media_order)
-            self.context["media_order"] = parsed_order
-            files_map, plain_list = self._extract_uploaded_map(data)
-            self.context["uploaded_map"] = files_map
-            self.context["uploaded_list"] = plain_list
-            if hasattr(mutable, "setlist"):
-                mutable.setlist("media_order", parsed_order)
-            else:
-                mutable["media_order"] = parsed_order
-        return super().to_internal_value(mutable)
-
-    def _parse_media_order(self, raw):
-        if raw is None:
-            return None
-        if isinstance(raw, str):
-            try:
-                raw = json.loads(raw)
-            except Exception as exc:
-                raise ValidationError({"media_order": f"JSON inválido: {exc}"})
-        if not isinstance(raw, (list, tuple)):
-            raise ValidationError({"media_order": "Debe ser una lista"})
-        normalized = []
-        for item in raw:
-            if not isinstance(item, dict):
-                raise ValidationError(
-                    {
-                        "media_order": "Cada elemento debe ser un objeto con id o upload_key"
-                    }
-                )
-            img_id = item.get("id")
-            upload_key = item.get("upload_key")
-            if not img_id and not upload_key:
-                raise ValidationError(
-                    {"media_order": "Cada elemento debe tener 'id' o 'upload_key'"}
-                )
-            normalized.append(
-                {
-                    "id": str(img_id) if img_id else None,
-                    "upload_key": str(upload_key) if upload_key else None,
-                }
+        if "media_items" in mutable:
+            mutable["media_items"] = parse_json_list(
+                mutable.get("media_items"), "media_items", ValidationError
             )
-        return normalized
 
-    def _extract_uploaded_map(self, data):
-        request = self.context.get("request")
-        files_map = {}
-        if request and hasattr(request, "FILES"):
-            for key in request.FILES:
-                if key.startswith("uploaded_media[") and key.endswith("]"):
-                    upload_key = key[len("uploaded_media[") : -1]
-                    files_map[upload_key] = request.FILES.get(key)
-        plain_list = []
-        if request and hasattr(request, "FILES"):
-            plain_list = request.FILES.getlist("uploaded_media")
-        return files_map, plain_list
-
-    def _apply_mixed_order(self, journey, media_order, uploaded_map, uploaded_list):
-        existing_qs = list(journey.media.all())
-        existing_map = {str(item.id): item for item in existing_qs}
-        used_ids = set()
-        new_objs = []
-        final_existing = []
-        plain_iter = iter(uploaded_list or [])
-
-        for idx, item in enumerate(media_order):
-            media_id = item.get("id")
-            upload_key = item.get("upload_key")
-            if media_id:
-                media_obj = existing_map.get(str(media_id))
-                if not media_obj:
-                    raise ValidationError(
-                        {"media_order": f"Media {media_id} no pertenece a la jornada"}
-                    )
-                used_ids.add(str(media_id))
-                media_obj.order = idx
-                final_existing.append(media_obj)
-            elif upload_key:
-                file = uploaded_map.get(upload_key)
-                if not file:
-                    try:
-                        file = next(plain_iter)
-                    except StopIteration:
-                        raise ValidationError(
-                            {
-                                "media_order": f"No se encontró archivo para upload_key '{upload_key}'"
-                            }
-                        )
-                media_type = self._media_type_for_file(file)
-                new_objs.append(
-                    JourneyMedia(
-                        journey=journey,
-                        media=file,
-                        media_type=media_type,
-                        order=idx,
-                    )
-                )
-
-        tail = [item for item in existing_qs if str(item.id) not in used_ids]
-        order_start = len(media_order)
-        for offset, media_obj in enumerate(tail):
-            media_obj.order = order_start + offset
-            final_existing.append(media_obj)
-
-        if new_objs:
-            JourneyMedia.objects.bulk_create(new_objs)
-        if final_existing:
-            JourneyMedia.objects.bulk_update(final_existing, ["order"])
+        return super().to_internal_value(mutable)
 
     def create(self, validated_data):
         benefits = validated_data.pop("benefits", [])
@@ -274,14 +190,38 @@ class JourneySerializer(GenericItemContentSyncMixin, MediaUploadMixin, UUIDSeria
         validated_data.pop("benefits_remove_ids", None)
         validated_data.pop("recommended_points_remove_ids", None)
         validated_data.pop("faqs_remove_ids", None)
-        uploaded_media = validated_data.pop("uploaded_media", [])
-        removed_ids = validated_data.pop("removed_media_ids", [])
-        validated_data.pop("ordered_media_ids", [])
-        media_order = validated_data.pop("media_order", None)
-        uploaded_map = self.context.get("uploaded_map", {})
-        uploaded_list = self.context.get("uploaded_list", [])
+        media_items = validated_data.pop("media_items", None)
+
+        # Extract image refs before create
+        benefits_image_ref = self._pop_optional_input(
+            validated_data, "benefits_image_ref"
+        )
+        recommended_image_ref = self._pop_optional_input(
+            validated_data, "recommended_image_ref"
+        )
+
         with transaction.atomic():
             journey = super().create(validated_data)
+
+            # Apply image references
+            image_update_fields = []
+            if self._apply_image_input(
+                    journey,
+                    "benefits_image",
+                    benefits_image_ref,
+                    CATALOG_IMAGE_PREFIXES,
+                ):
+                image_update_fields.append("benefits_image")
+            if self._apply_image_input(
+                    journey,
+                    "recommended_image",
+                    recommended_image_ref,
+                    CATALOG_IMAGE_PREFIXES,
+                ):
+                image_update_fields.append("recommended_image")
+            if image_update_fields:
+                journey.save(update_fields=image_update_fields)
+
             self._apply_generic_changes(
                 journey,
                 ItemBenefit,
@@ -309,12 +249,10 @@ class JourneySerializer(GenericItemContentSyncMixin, MediaUploadMixin, UUIDSeria
                 ["question", "answer", "order"],
                 True,
             )
-            if removed_ids:
-                journey.media.filter(id__in=removed_ids).delete()
-            if media_order is not None:
-                self._apply_mixed_order(journey, media_order, uploaded_map, uploaded_list)
-            elif uploaded_media:
-                self._create_media(journey, uploaded_media)
+
+            if media_items is not None:
+                self._apply_media_items(journey, media_items)
+
             return journey
 
     def update(self, instance, validated_data):
@@ -326,14 +264,38 @@ class JourneySerializer(GenericItemContentSyncMixin, MediaUploadMixin, UUIDSeria
             "recommended_points_remove_ids", None
         )
         faqs_remove_ids = validated_data.pop("faqs_remove_ids", None)
-        uploaded_media = validated_data.pop("uploaded_media", [])
-        removed_ids = validated_data.pop("removed_media_ids", [])
-        ordered_media_ids = validated_data.pop("ordered_media_ids", [])
-        media_order = validated_data.pop("media_order", None)
-        uploaded_map = self.context.get("uploaded_map", {})
-        uploaded_list = self.context.get("uploaded_list", [])
+        media_items = validated_data.pop("media_items", None)
+
+        # Extract image refs
+        benefits_image_ref = self._pop_optional_input(
+            validated_data, "benefits_image_ref"
+        )
+        recommended_image_ref = self._pop_optional_input(
+            validated_data, "recommended_image_ref"
+        )
+
         with transaction.atomic():
             journey = super().update(instance, validated_data)
+
+            # Apply image references
+            update_fields = []
+            if self._apply_image_input(
+                    journey,
+                    "benefits_image",
+                    benefits_image_ref,
+                    CATALOG_IMAGE_PREFIXES,
+                ):
+                update_fields.append("benefits_image")
+            if self._apply_image_input(
+                    journey,
+                    "recommended_image",
+                    recommended_image_ref,
+                    CATALOG_IMAGE_PREFIXES,
+                ):
+                update_fields.append("recommended_image")
+            if update_fields:
+                journey.save(update_fields=update_fields)
+
             self._apply_generic_changes(
                 journey,
                 ItemBenefit,
@@ -361,16 +323,10 @@ class JourneySerializer(GenericItemContentSyncMixin, MediaUploadMixin, UUIDSeria
                 ["question", "answer", "order"],
                 False,
             )
-            if removed_ids:
-                journey.media.filter(id__in=removed_ids).delete()
-            if media_order is not None:
-                self._apply_mixed_order(
-                    journey, media_order, uploaded_map, uploaded_list
-                )
-            elif uploaded_media:
-                self._create_media(journey, uploaded_media)
-        if ordered_media_ids:
-            reorder_gallery(journey, ordered_media_ids)
+
+            if media_items is not None:
+                self._apply_media_items(journey, media_items)
+
         return journey
 
 

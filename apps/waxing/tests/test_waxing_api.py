@@ -277,7 +277,8 @@ def test_admin_summary_endpoint_requires_staff_and_returns_full_dataset_without_
 
     content = WaxingContent.objects.order_by("-created_at").first()
     content.title = "Contenido admin"
-    content.save(update_fields=["title"])
+    content.description = content.description or "Descripcion admin"
+    content.save(update_fields=["title", "description"])
     benefit = content.benefits.create(
         title="Beneficio admin",
         detail="Detalle",

@@ -1,6 +1,6 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.parsers import JSONParser
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 
@@ -11,12 +11,12 @@ from ..serializers import (
     JourneyMediaSerializer,
 )
 from ..permissions import IsAdminOrReadOnly
-from .mixins import GalleryOrderingMixin, MultipartJsonMixin
+from .mixins import GalleryOrderingMixin
 from ..services.listing import SORT_OPTIONS, sort_items, serialize_items
 from ..services.filters_summary import build_filters_summary
 
 
-class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewSet):
+class JourneyViewSet(GalleryOrderingMixin, viewsets.ModelViewSet):
     queryset = (
         Journey.objects.select_related("category")
         .prefetch_related("media", "benefits", "recommended_points", "faqs")
@@ -24,9 +24,8 @@ class JourneyViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelVie
     )
     serializer_class = JourneySerializer
     permission_classes = [IsAdminOrReadOnly]
-    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    parser_classes = [JSONParser]
     media_serializer_class = JourneyMediaSerializer
-    multipart_json_fields = ["addons", "benefits", "recommended_points", "faqs"]
     filterset_fields = ["category"]
 
     def get_serializer_class(self):

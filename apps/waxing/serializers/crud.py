@@ -1,3 +1,7 @@
+"""
+Waxing CRUD serializers with JSON-only Cloudinary image support.
+"""
+
 import json
 
 from django.db import transaction
@@ -5,6 +9,10 @@ from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
 from apps.shared.serializers.ordered_items import OrderedNestedItemsMixin
+from apps.shared.cloudinary import (
+    validate_cloudinary_asset,
+    CloudinaryValidationError,
+)
 
 from ..models import (
     Area,
@@ -22,12 +30,58 @@ from ..models import (
 from .common import ModelCleanValidationMixin, UUIDSerializer
 
 
+class CloudinaryImageRefMixin:
+    """
+    Mixin for serializers that handle a single Cloudinary image via JSON reference.
+    """
+
+    def _pop_optional_input(self, validated_data: dict, key: str):
+        if key not in validated_data:
+            return serializers.empty
+        return validated_data.pop(key)
+
+    def _handle_image_ref(self, instance, field_name: str, value, allowed_prefixes: list[str]):
+        """
+        Handle image field input that could be:
+        - None: leave unchanged
+        - "": clear the field
+        - string public_id: validate and set
+        - dict with public_id: validate and set
+        """
+        if value is serializers.empty:
+            return False
+
+        if value is None or value == "" or value == {}:
+            setattr(instance, field_name, None)
+            return True
+
+        # Accept string public_id directly
+        if isinstance(value, str):
+            ref_data = {"public_id": value}
+        else:
+            ref_data = value
+
+        try:
+            ref = validate_cloudinary_asset(
+                reference=ref_data,
+                allowed_prefixes=allowed_prefixes,
+            )
+            setattr(instance, field_name, ref.public_id)
+            return True
+        except CloudinaryValidationError as e:
+            raise ValidationError({field_name: str(e)})
+
+
 class WaxingSettingsSerializer(ModelCleanValidationMixin, UUIDSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         if self.instance is None and WaxingSettings.objects.exists():
             raise serializers.ValidationError(
-                {"non_field_errors": ["Solo puede existir un registro de WaxingSettings."]}
+                {
+                    "non_field_errors": [
+                        "Solo puede existir un registro de WaxingSettings."
+                    ]
+                }
             )
         return attrs
 
@@ -36,28 +90,120 @@ class WaxingSettingsSerializer(ModelCleanValidationMixin, UUIDSerializer):
         fields = "__all__"
 
 
-class SectionSerializer(ModelCleanValidationMixin, UUIDSerializer):
+class SectionSerializer(
+    CloudinaryImageRefMixin, ModelCleanValidationMixin, UUIDSerializer
+):
+    image_ref = serializers.JSONField(
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text="Cloudinary ref: {'public_id': '...'} or string, or null to clear",
+    )
+
     class Meta:
         model = Section
         fields = "__all__"
 
+    def create(self, validated_data):
+        image_ref = self._pop_optional_input(validated_data, "image_ref")
+        instance = super().create(validated_data)
+        if self._handle_image_ref(instance, "image", image_ref, ["waxing/sections"]):
+            instance.save(update_fields=["image"])
+        return instance
 
-class AreaCategorySerializer(ModelCleanValidationMixin, UUIDSerializer):
+    def update(self, instance, validated_data):
+        image_ref = self._pop_optional_input(validated_data, "image_ref")
+        instance = super().update(instance, validated_data)
+        if self._handle_image_ref(instance, "image", image_ref, ["waxing/sections"]):
+            instance.save(update_fields=["image"])
+        return instance
+
+
+class AreaCategorySerializer(
+    CloudinaryImageRefMixin, ModelCleanValidationMixin, UUIDSerializer
+):
+    image_ref = serializers.JSONField(
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text="Cloudinary ref: {'public_id': '...'} or string, or null to clear",
+    )
+
     class Meta:
         model = AreaCategory
         fields = "__all__"
 
+    def create(self, validated_data):
+        image_ref = self._pop_optional_input(validated_data, "image_ref")
+        instance = super().create(validated_data)
+        if self._handle_image_ref(instance, "image", image_ref, ["waxing/area_categories"]):
+            instance.save(update_fields=["image"])
+        return instance
 
-class AreaSerializer(ModelCleanValidationMixin, UUIDSerializer):
+    def update(self, instance, validated_data):
+        image_ref = self._pop_optional_input(validated_data, "image_ref")
+        instance = super().update(instance, validated_data)
+        if self._handle_image_ref(instance, "image", image_ref, ["waxing/area_categories"]):
+            instance.save(update_fields=["image"])
+        return instance
+
+
+class AreaSerializer(
+    CloudinaryImageRefMixin, ModelCleanValidationMixin, UUIDSerializer
+):
+    image_ref = serializers.JSONField(
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text="Cloudinary ref: {'public_id': '...'} or string, or null to clear",
+    )
+
     class Meta:
         model = Area
         fields = "__all__"
 
+    def create(self, validated_data):
+        image_ref = self._pop_optional_input(validated_data, "image_ref")
+        instance = super().create(validated_data)
+        if self._handle_image_ref(instance, "image", image_ref, ["waxing/areas"]):
+            instance.save(update_fields=["image"])
+        return instance
 
-class PackSerializer(ModelCleanValidationMixin, UUIDSerializer):
+    def update(self, instance, validated_data):
+        image_ref = self._pop_optional_input(validated_data, "image_ref")
+        instance = super().update(instance, validated_data)
+        if self._handle_image_ref(instance, "image", image_ref, ["waxing/areas"]):
+            instance.save(update_fields=["image"])
+        return instance
+
+
+class PackSerializer(
+    CloudinaryImageRefMixin, ModelCleanValidationMixin, UUIDSerializer
+):
+    image_ref = serializers.JSONField(
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text="Cloudinary ref: {'public_id': '...'} or string, or null to clear",
+    )
+
     class Meta:
         model = Pack
         fields = "__all__"
+
+    def create(self, validated_data):
+        image_ref = self._pop_optional_input(validated_data, "image_ref")
+        instance = super().create(validated_data)
+        if self._handle_image_ref(instance, "image", image_ref, ["waxing/packs"]):
+            instance.save(update_fields=["image"])
+        return instance
+
+    def update(self, instance, validated_data):
+        image_ref = self._pop_optional_input(validated_data, "image_ref")
+        instance = super().update(instance, validated_data)
+        if self._handle_image_ref(instance, "image", image_ref, ["waxing/packs"]):
+            instance.save(update_fields=["image"])
+        return instance
 
 
 class PackAreaSerializer(ModelCleanValidationMixin, UUIDSerializer):
@@ -109,11 +255,44 @@ class FaqItemNestedSerializer(UUIDSerializer):
 
 
 class WaxingContentSerializer(
-    ModelCleanValidationMixin, OrderedNestedItemsMixin, UUIDSerializer
+    CloudinaryImageRefMixin,
+    ModelCleanValidationMixin,
+    OrderedNestedItemsMixin,
+    UUIDSerializer,
 ):
+    """
+    WaxingContent serializer with JSON-only Cloudinary image support.
+
+    Image handling:
+    - Use `image_ref`, `benefits_image_ref`, `recommendations_image_ref`
+    - All image references must be Cloudinary public_ids from signed uploads
+    """
+
     benefits = BenefitItemNestedSerializer(many=True, required=False)
     recommendations = RecommendationItemNestedSerializer(many=True, required=False)
     faqs = FaqItemNestedSerializer(many=True, required=False)
+
+    # JSON-only image fields
+    image_ref = serializers.JSONField(
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text="Cloudinary ref: {'public_id': '...'} or string, or null to clear",
+    )
+    benefits_image_ref = serializers.JSONField(
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text="Cloudinary ref: {'public_id': '...'} or string, or null to clear",
+    )
+    recommendations_image_ref = serializers.JSONField(
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text="Cloudinary ref: {'public_id': '...'} or string, or null to clear",
+    )
+
+    # Removal fields for nested content
     benefits_remove_ids = serializers.ListField(
         child=serializers.UUIDField(),
         write_only=True,
@@ -206,7 +385,11 @@ class WaxingContentSerializer(
 
         if self.instance is None and WaxingContent.objects.exists():
             raise serializers.ValidationError(
-                {"non_field_errors": ["Solo puede existir un registro de WaxingContent."]}
+                {
+                    "non_field_errors": [
+                        "Solo puede existir un registro de WaxingContent."
+                    ]
+                }
             )
         return attrs
 
@@ -215,8 +398,36 @@ class WaxingContentSerializer(
         recommendations = validated_data.pop("recommendations", [])
         faqs = validated_data.pop("faqs", [])
 
+        # Extract image refs before create
+        image_ref = self._pop_optional_input(validated_data, "image_ref")
+        benefits_image_ref = self._pop_optional_input(
+            validated_data, "benefits_image_ref"
+        )
+        recommendations_image_ref = self._pop_optional_input(
+            validated_data, "recommendations_image_ref"
+        )
+
         with transaction.atomic():
             content = super().create(validated_data)
+
+            # Apply image references
+            update_fields = []
+            if self._handle_image_ref(content, "image", image_ref, ["waxing/content"]):
+                update_fields.append("image")
+            if self._handle_image_ref(
+                    content, "benefits_image", benefits_image_ref, ["waxing/content"]
+                ):
+                update_fields.append("benefits_image")
+            if self._handle_image_ref(
+                    content,
+                    "recommendations_image",
+                    recommendations_image_ref,
+                    ["waxing/content"],
+                ):
+                update_fields.append("recommendations_image")
+            if update_fields:
+                content.save(update_fields=update_fields)
+
             self._apply_related_changes(
                 content=content,
                 model_cls=BenefitItem,
@@ -251,11 +462,41 @@ class WaxingContentSerializer(
         recommendations = validated_data.pop("recommendations", None)
         faqs = validated_data.pop("faqs", None)
         benefits_remove_ids = validated_data.pop("benefits_remove_ids", None)
-        recommendations_remove_ids = validated_data.pop("recommendations_remove_ids", None)
+        recommendations_remove_ids = validated_data.pop(
+            "recommendations_remove_ids", None
+        )
         faqs_remove_ids = validated_data.pop("faqs_remove_ids", None)
+
+        # Extract image refs
+        image_ref = self._pop_optional_input(validated_data, "image_ref")
+        benefits_image_ref = self._pop_optional_input(
+            validated_data, "benefits_image_ref"
+        )
+        recommendations_image_ref = self._pop_optional_input(
+            validated_data, "recommendations_image_ref"
+        )
 
         with transaction.atomic():
             content = super().update(instance, validated_data)
+
+            # Apply image references
+            update_fields = []
+            if self._handle_image_ref(content, "image", image_ref, ["waxing/content"]):
+                update_fields.append("image")
+            if self._handle_image_ref(
+                    content, "benefits_image", benefits_image_ref, ["waxing/content"]
+                ):
+                update_fields.append("benefits_image")
+            if self._handle_image_ref(
+                    content,
+                    "recommendations_image",
+                    recommendations_image_ref,
+                    ["waxing/content"],
+                ):
+                update_fields.append("recommendations_image")
+            if update_fields:
+                content.save(update_fields=update_fields)
+
             self._apply_related_changes(
                 content=content,
                 model_cls=BenefitItem,

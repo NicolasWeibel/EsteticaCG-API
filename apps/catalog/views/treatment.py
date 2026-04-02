@@ -1,7 +1,7 @@
 from rest_framework import viewsets
 from django.db.models import Avg
 from rest_framework.decorators import action
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.parsers import JSONParser
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from ..permissions import IsAdminOrReadOnly
@@ -11,10 +11,10 @@ from ..serializers import (
     PublicTreatmentSerializer,
     TreatmentMediaSerializer,
 )
-from .mixins import GalleryOrderingMixin, MultipartJsonMixin
+from .mixins import GalleryOrderingMixin
 
 
-class TreatmentViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewSet):
+class TreatmentViewSet(GalleryOrderingMixin, viewsets.ModelViewSet):
     queryset = (
         Treatment.objects.annotate(avg_duration=Avg("zone_configs__duration"))
         .select_related("category", "journey")
@@ -31,9 +31,8 @@ class TreatmentViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelV
     )
     serializer_class = TreatmentSerializer
     permission_classes = [IsAdminOrReadOnly]
-    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    parser_classes = [JSONParser]
     media_serializer_class = TreatmentMediaSerializer
-    multipart_json_fields = ["zone_configs", "benefits", "recommended_points", "faqs"]
     filterset_fields = ["category", "journey"]
     search_fields = ["title", "description"]
 

@@ -1,16 +1,16 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.parsers import JSONParser
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 
 from ..models import Combo
 from ..serializers import ComboSerializer, PublicComboSerializer, ComboMediaSerializer
 from ..permissions import IsAdminOrReadOnly
-from .mixins import GalleryOrderingMixin, MultipartJsonMixin
+from .mixins import GalleryOrderingMixin
 
 
-class ComboViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewSet):
+class ComboViewSet(GalleryOrderingMixin, viewsets.ModelViewSet):
     queryset = (
         Combo.objects.select_related("category", "journey")
         .prefetch_related(
@@ -33,15 +33,8 @@ class ComboViewSet(MultipartJsonMixin, GalleryOrderingMixin, viewsets.ModelViewS
     )
     serializer_class = ComboSerializer
     permission_classes = [IsAdminOrReadOnly]
-    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    parser_classes = [JSONParser]
     media_serializer_class = ComboMediaSerializer
-    multipart_json_fields = [
-        "ingredients",
-        "session_items",
-        "benefits",
-        "recommended_points",
-        "faqs",
-    ]
     filterset_fields = [
         "category",
         "journey",
