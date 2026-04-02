@@ -1,5 +1,5 @@
 from rest_framework import viewsets
-from django.db.models import Avg
+from django.db.models import Avg, Min
 from rest_framework.decorators import action
 from rest_framework.parsers import JSONParser
 from rest_framework.exceptions import NotFound, ValidationError
@@ -16,7 +16,10 @@ from .mixins import GalleryOrderingMixin
 
 class TreatmentViewSet(GalleryOrderingMixin, viewsets.ModelViewSet):
     queryset = (
-        Treatment.objects.annotate(avg_duration=Avg("zone_configs__duration"))
+        Treatment.objects.annotate(
+            avg_duration=Avg("zone_configs__duration"),
+            min_duration=Min("zone_configs__duration"),
+        )
         .select_related("category", "journey")
         .prefetch_related(
             "media",

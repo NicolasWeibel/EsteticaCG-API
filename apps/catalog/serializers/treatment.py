@@ -7,7 +7,7 @@ asset references instead of multipart file uploads.
 
 import json
 from django.db import transaction
-from django.db.models import Avg
+from django.db.models import Avg, Min
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
@@ -63,6 +63,7 @@ class TreatmentSerializer(
     effective_price = serializers.SerializerMethodField()
     kind = serializers.SerializerMethodField()
     duration = serializers.SerializerMethodField()
+    from_duration = serializers.SerializerMethodField()
 
     # JSON-only media fields
     media_items = serializers.ListField(
@@ -167,6 +168,12 @@ class TreatmentSerializer(
         if avg_duration is None:
             return None
         return int(round(avg_duration))
+
+    def get_from_duration(self, obj):
+        min_duration = getattr(obj, "min_duration", None)
+        if min_duration is None:
+            min_duration = obj.zone_configs.aggregate(min=Min("duration")).get("min")
+        return min_duration
 
     def _parse_zone_configs(self, raw):
         if raw is None:
@@ -530,6 +537,7 @@ class PublicTreatmentSerializer(TreatmentSerializer):
             "effective_price",
             "kind",
             "duration",
+            "from_duration",
         ]
 
     def get_category(self, obj):

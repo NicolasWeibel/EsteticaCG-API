@@ -362,6 +362,33 @@ def test_api_treatment_rejects_active_without_zone_configs():
 
 
 @pytest.mark.django_db
+def test_api_treatment_exposes_from_duration_as_shortest_zone_duration():
+    client = APIClient()
+    category = _make_category()
+    treatment = _make_treatment(category)
+    zone_a = _make_zone(category)
+    zone_b = _make_zone(category)
+    TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone_a,
+        duration=30,
+        price=100,
+    )
+    TreatmentZoneConfig.objects.create(
+        treatment=treatment,
+        zone=zone_b,
+        duration=45,
+        price=120,
+    )
+
+    resp = client.get(f"/api/v1/catalog/treatments/{treatment.id}/")
+
+    assert resp.status_code == 200
+    assert resp.data["duration"] == 38
+    assert resp.data["from_duration"] == 30
+
+
+@pytest.mark.django_db
 def test_api_combo_rejects_active_with_inactive_treatment():
     client = APIClient()
     client.force_authenticate(_make_staff())
