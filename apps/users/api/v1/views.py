@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions, viewsets, filters
 from rest_framework.authentication import SessionAuthentication
-from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import (
     UserMeSerializer,
@@ -23,6 +23,10 @@ from apps.users.models import Client
 from apps.users.services import update_client_profile, ClientMatchError
 from apps.authcodes.models import OTPLoginCode
 from apps.authcodes.tasks import send_verification_code_task
+from core.api import CookieCsrfProtectedAPIView
+from core.authentication import CookieJWTAuthentication
+from core.auth_cookies import attach_csrf_token, clear_auth_cookies, set_auth_cookies
+from core.csrf import issue_csrf_token
 
 
 def _is_allowed_next(next_url: str) -> bool:
@@ -62,6 +66,24 @@ def _mask_email(email: str) -> str:
     return f"{name_mask}@***"
 
 
+def _auth_success_response(request, user, *, status_code=status.HTTP_200_OK):
+    refresh = RefreshToken.for_user(user)
+    response = Response(
+        {
+            "success": True,
+            "user": UserMeSerializer(user).data,
+        },
+        status=status_code,
+    )
+    response = set_auth_cookies(
+        response,
+        access_token=str(refresh.access_token),
+        refresh_token=str(refresh),
+    )
+    attach_csrf_token(request, response)
+    return response
+
+
 class GoogleLoginStartView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
@@ -90,23 +112,19 @@ class GoogleLoginCompleteView(APIView):
             start = request.build_absolute_uri(reverse("users_api_v1:google-start"))
             return HttpResponseRedirect(f"{start}?{qs}")
 
-        # 2. Login exitoso: Generamos los tokens MANUALMENTE
-        refresh = RefreshToken.for_user(request.user)
-        access_token = str(refresh.access_token)
-        refresh_token = str(refresh)
-
-        # 3. Construimos la URL de regreso
+        # 2. Construimos la URL de regreso sin exponer tokens en query params.
         target_url = _safe_next(request.GET.get("next"))
-
-        # Detectamos si usamos '?' o '&' para no romper la URL
         separator = "&" if "?" in target_url else "?"
-
-        # 4. Redirigimos al frontend con los tokens en la URL
-        final_url = (
-            f"{target_url}{separator}access={access_token}&refresh={refresh_token}"
+        final_url = f"{target_url}{separator}oauth_success=true"
+        refresh = RefreshToken.for_user(request.user)
+        response = HttpResponseRedirect(final_url)
+        response = set_auth_cookies(
+            response,
+            access_token=str(refresh.access_token),
+            refresh_token=str(refresh),
         )
-
-        return HttpResponseRedirect(final_url)
+        issue_csrf_token(request)
+        return response
 
 
 class SessionToJWTView(APIView):
@@ -114,34 +132,69 @@ class SessionToJWTView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        refresh = RefreshToken.for_user(request.user)
-        return Response(
-            {
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
-                "user": UserMeSerializer(request.user).data,
-            },
-            status=status.HTTP_200_OK,
-        )
+        return _auth_success_response(request, request.user)
 
 
-class LogoutView(APIView):
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+class CsrfTokenView(APIView):
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        return Response({"csrfToken": issue_csrf_token(request)}, status=status.HTTP_200_OK)
+
+
+class CookieTokenRefreshView(CookieCsrfProtectedAPIView):
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+    csrf_cookie_names = (settings.AUTH_COOKIE_REFRESH_NAME,)
 
     def post(self, request):
-        token = request.data.get("refresh")
-        if not token:
-            return Response({"detail": "Falta 'refresh'."}, status=400)
-        try:
-            RefreshToken(token).blacklist()
-        except Exception:
-            return Response({"detail": "Refresh inválido."}, status=400)
-        return Response(status=204)
+        refresh_token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH_NAME)
+        if not refresh_token:
+            return Response(
+                {"detail": "Falta refresh token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = TokenRefreshSerializer(data={"refresh": refresh_token})
+        serializer.is_valid(raise_exception=True)
+
+        response = Response({"success": True}, status=status.HTTP_200_OK)
+        response = set_auth_cookies(
+            response,
+            access_token=serializer.validated_data["access"],
+            refresh_token=serializer.validated_data.get("refresh"),
+        )
+        attach_csrf_token(request, response)
+        return response
+
+
+class LogoutView(CookieCsrfProtectedAPIView):
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+    csrf_cookie_names = (
+        settings.AUTH_COOKIE_ACCESS_NAME,
+        settings.AUTH_COOKIE_REFRESH_NAME,
+    )
+
+    def post(self, request):
+        token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH_NAME) or request.data.get(
+            "refresh"
+        )
+        if token:
+            try:
+                RefreshToken(token).blacklist()
+            except Exception:
+                pass
+
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        response = clear_auth_cookies(response)
+        issue_csrf_token(request)
+        return response
 
 
 class MeView(APIView):
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [CookieJWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
@@ -155,7 +208,7 @@ class MeView(APIView):
 
 
 class ProfileView(APIView):
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [CookieJWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def patch(self, request):
@@ -169,7 +222,7 @@ class ProfileView(APIView):
 
 
 class RequestDniChangeCodeView(APIView):
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [CookieJWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
@@ -187,7 +240,7 @@ class RequestDniChangeCodeView(APIView):
 
 
 class RequestDniClaimCodeView(APIView):
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [CookieJWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):

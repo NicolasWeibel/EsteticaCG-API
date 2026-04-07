@@ -4,6 +4,7 @@
 from django.urls import path
 from rest_framework.routers import SimpleRouter
 from .views import (
+    CsrfTokenView,
     SessionToJWTView,
     LogoutView,
     MeView,
@@ -19,6 +20,7 @@ app_name = "users_api_v1"
 router = SimpleRouter()
 router.register(r"clients", ClientViewSet, basename="client")
 urlpatterns = [
+    path("csrf/", CsrfTokenView.as_view(), name="csrf"),
     path("session-to-jwt/", SessionToJWTView.as_view(), name="session-to-jwt"),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("me/", MeView.as_view(), name="me"),

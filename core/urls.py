@@ -5,7 +5,8 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
     SpectacularRedocView,
 )
-from rest_framework_simplejwt.views import TokenRefreshView, TokenVerifyView
+from rest_framework_simplejwt.views import TokenVerifyView
+from apps.users.api.v1.views import CookieTokenRefreshView
 from .views import health_check
 
 urlpatterns = [
@@ -43,6 +44,10 @@ urlpatterns = [
         include(("apps.reviews.api.v1.urls", "reviews"), namespace="reviews"),
     ),
     # JWT helpers
-    path("api/v1/auth/jwt/refresh/", TokenRefreshView.as_view(), name="jwt-refresh"),
+    path(
+        "api/v1/auth/jwt/refresh/",
+        CookieTokenRefreshView.as_view(),
+        name="jwt-refresh",
+    ),
     path("api/v1/auth/jwt/verify/", TokenVerifyView.as_view(), name="jwt-verify"),
 ]

@@ -1,0 +1,8 @@
+{{ title }}
+
+Usalo para {{ intro_action }} en {{ brand_name }}.
+
+Codigo: {{ code }}
+Expira en {{ expires_minutes }} minutos.
+
+No compartas este codigo con nadie. Si no solicitaste este acceso, podes ignorar este correo.

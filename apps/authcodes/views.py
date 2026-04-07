@@ -9,6 +9,7 @@ from rest_framework import status, permissions, throttling
 from rest_framework_simplejwt.tokens import RefreshToken
 from apps.users.services import ensure_client_for_user
 from apps.users.api.v1.serializers import UserMeSerializer
+from core.auth_cookies import attach_csrf_token, set_auth_cookies
 
 from .serializers import RequestCodeSerializer, VerifyCodeSerializer
 from .models import OTPLoginCode
@@ -20,6 +21,7 @@ User = get_user_model()
 
 class RequestCodeView(APIView):
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
     throttle_classes = [RequestCodeThrottle]
 
     def post(self, request):
@@ -37,6 +39,7 @@ class RequestCodeView(APIView):
 
 class VerifyCodeView(APIView):
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
     throttle_classes = [throttling.AnonRateThrottle]
 
     @transaction.atomic
@@ -57,10 +60,16 @@ class VerifyCodeView(APIView):
         user, _ = User.objects.get_or_create(email=email, defaults={"is_active": True})
         ensure_client_for_user(user=user, email=email)
         refresh = RefreshToken.for_user(user)
-        return Response(
+        response = Response(
             {
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
+                "success": True,
                 "user": UserMeSerializer(user).data,
             }
         )
+        response = set_auth_cookies(
+            response,
+            access_token=str(refresh.access_token),
+            refresh_token=str(refresh),
+        )
+        attach_csrf_token(request, response)
+        return response

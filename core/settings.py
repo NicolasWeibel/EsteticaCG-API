@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import environ
 from datetime import timedelta
+from core.csrf import validate_cookie_settings
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env()
@@ -19,6 +20,7 @@ def _env_prefix_list(name: str) -> list[str]:
     if not raw:
         return []
     return [item.strip() for item in str(raw).split(";") if item.strip()]
+
 
 # ── CARGAR .ENV (SEGÚN ENTORNO) ──
 ENV = os.getenv("ENV", "development")
@@ -188,9 +190,7 @@ CLOUDINARY_STORAGE = {
 
 # ── DRF ──
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ),
+    "DEFAULT_AUTHENTICATION_CLASSES": ("core.authentication.CookieJWTAuthentication",),
     "DEFAULT_FILTER_BACKENDS": (
         "django_filters.rest_framework.DjangoFilterBackend",
         "rest_framework.filters.SearchFilter",
@@ -229,6 +229,17 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
 }
+
+AUTH_COOKIE_ACCESS_NAME = env("AUTH_COOKIE_ACCESS_NAME", default="accessToken")
+AUTH_COOKIE_REFRESH_NAME = env("AUTH_COOKIE_REFRESH_NAME", default="refreshToken")
+AUTH_COOKIE_PATH = env("AUTH_COOKIE_PATH", default="/")
+AUTH_COOKIE_DOMAIN = env("AUTH_COOKIE_DOMAIN", default="").strip() or None
+AUTH_COOKIE_SECURE = env.bool("AUTH_COOKIE_SECURE", default=not DEBUG)
+AUTH_COOKIE_SAMESITE = env(
+    "AUTH_COOKIE_SAMESITE",
+    default="Lax" if DEBUG else "Strict",
+)
+validate_cookie_settings(AUTH_COOKIE_SAMESITE, AUTH_COOKIE_SECURE)
 
 # ── AUTH & ALLAUTH ──
 AUTH_USER_MODEL = "users.User"
@@ -288,8 +299,20 @@ REST_AUTH = {
 }
 
 # ── EMAIL & CELERY ──
-if DEBUG:
-    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND",
+    default=(
+        "django.core.mail.backends.console.EmailBackend"
+        if DEBUG
+        else "django.core.mail.backends.smtp.EmailBackend"
+    ),
+)
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_FROM_NAME = env("EMAIL_FROM_NAME", default="Estetica CG")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@example.com")
 
 # Celery
@@ -301,6 +324,7 @@ CELERY_RESULT_BACKEND = env(
     default=REDIS_URL if REDIS_URL else "db+sqlite:///results.sqlite",
 )
 CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_IGNORE_RESULT = env.bool("CELERY_TASK_IGNORE_RESULT", default=True)
 CELERY_TASK_ALWAYS_EAGER = env.bool("CELERY_TASK_ALWAYS_EAGER", default=False)
 CELERY_TASK_EAGER_PROPAGATES = True
 
