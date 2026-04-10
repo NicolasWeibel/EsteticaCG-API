@@ -1,7 +1,7 @@
 # ===============================
 # Makefile  (atajos)
 # ===============================
-.PHONY: run migrate makemigrations test lint fmt schema deploy-staging
+.PHONY: run migrate makemigrations test lint fmt schema deploy-staging deploy-production
 run:
 \tpython manage.py runserver
 migrate:
@@ -18,3 +18,5 @@ schema:
 \tpython manage.py spectacular --file schema.yaml
 deploy-staging:
 \tpowershell -ExecutionPolicy Bypass -File scripts/deploy-staging.ps1
+deploy-production:
+\tpowershell -ExecutionPolicy Bypass -File scripts/deploy-production.ps1

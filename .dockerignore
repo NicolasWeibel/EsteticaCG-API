@@ -1,0 +1,26 @@
+.git
+.gitignore
+.dockerignore
+
+# Local env files and secrets must not be baked into the image.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Python caches and local virtualenvs
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local tooling/editor files
+.vscode/
+.idea/
+
+# OS cruft
+Thumbs.db
+.DS_Store

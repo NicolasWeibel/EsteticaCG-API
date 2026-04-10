@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions, viewsets, filters
 from rest_framework.authentication import SessionAuthentication
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import (
@@ -157,7 +158,17 @@ class CookieTokenRefreshView(CookieCsrfProtectedAPIView):
             )
 
         serializer = TokenRefreshSerializer(data={"refresh": refresh_token})
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as exc:
+            invalid_token = InvalidToken(exc.args[0])
+            response = Response(
+                invalid_token.detail,
+                status=invalid_token.status_code,
+            )
+            response = clear_auth_cookies(response)
+            attach_csrf_token(request, response)
+            return response
 
         response = Response({"success": True}, status=status.HTTP_200_OK)
         response = set_auth_cookies(

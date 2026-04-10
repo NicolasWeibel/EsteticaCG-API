@@ -79,6 +79,44 @@ def test_refresh_reads_refresh_cookie_and_rotates_auth_cookies(settings):
 
 
 @pytest.mark.django_db
+def test_refresh_rejects_reused_blacklisted_refresh_token(settings):
+    _disable_throttling(settings)
+    email = "blacklisted-refresh@example.com"
+    _, raw_code = OTPLoginCode.create_fresh(email=email)
+
+    client = APIClient(enforce_csrf_checks=True)
+    login_response = client.post(
+        "/api/v1/auth/verify-code/",
+        {"email": email, "code": raw_code},
+        format="json",
+    )
+    original_refresh = login_response.cookies[settings.AUTH_COOKIE_REFRESH_NAME].value
+
+    refresh_response = client.post(
+        "/api/v1/auth/jwt/refresh/",
+        {},
+        format="json",
+        HTTP_X_CSRFTOKEN=login_response.data["csrfToken"],
+    )
+
+    assert refresh_response.status_code == 200
+
+    client.cookies[settings.AUTH_COOKIE_REFRESH_NAME] = original_refresh
+    reused_refresh_response = client.post(
+        "/api/v1/auth/jwt/refresh/",
+        {},
+        format="json",
+        HTTP_X_CSRFTOKEN=refresh_response.data["csrfToken"],
+    )
+
+    assert reused_refresh_response.status_code == 401
+    assert reused_refresh_response.data["code"] == "token_not_valid"
+    assert "blacklisted" in reused_refresh_response.data["detail"].lower()
+    assert reused_refresh_response.cookies[settings.AUTH_COOKIE_ACCESS_NAME].value == ""
+    assert reused_refresh_response.cookies[settings.AUTH_COOKIE_REFRESH_NAME].value == ""
+
+
+@pytest.mark.django_db
 def test_logout_clears_auth_cookies(settings):
     _disable_throttling(settings)
     email = "logout-cookie@example.com"
