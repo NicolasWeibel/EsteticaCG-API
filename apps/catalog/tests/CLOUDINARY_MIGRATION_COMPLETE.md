@@ -135,6 +135,11 @@ CATALOG_IMAGE_PREFIXES = [
     "catalog/items/recommended"
 ]
 
+CATALOG_JOURNEY_IMAGE_PREFIXES = [
+    "catalog/journeys/benefits",
+    "catalog/journeys/recommended"
+]
+
 CATALOG_CATEGORY_PREFIXES = [
     "catalog/categories"
 ]

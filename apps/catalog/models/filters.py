@@ -19,7 +19,9 @@ class Technique(TimeStampedUUIDModel):
 
 class Objective(TimeStampedUUIDModel):
     name = models.CharField(max_length=100, unique=True)
-    image = models.ImageField(upload_to="objectives/", blank=True, null=True)
+    image = models.ImageField(
+        upload_to="catalog/filters/objectives/", blank=True, null=True
+    )
     category = models.ForeignKey(
         Category,
         on_delete=models.CASCADE,

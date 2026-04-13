@@ -15,7 +15,7 @@ from django.conf import settings
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 
-from apps.catalog.models import Treatment, TreatmentMedia, Category
+from apps.catalog.models import Category, Journey, Treatment, TreatmentMedia
 from apps.shared.cloudinary.upload import generate_upload_signature
 
 User = get_user_model()
@@ -61,6 +61,16 @@ def treatment(category):
         category=category,
         requires_zones=False,
         is_active=False,
+    )
+
+
+@pytest.fixture
+def journey(category):
+    """Create a basic journey for testing."""
+    return Journey.objects.create(
+        title="Test Journey",
+        slug="test-journey",
+        category=category,
     )
 
 
@@ -183,6 +193,95 @@ def test_list_upload_contexts(api_client):
     assert "catalog_treatment_media" in response.data["contexts"]
     assert "catalog_combo_media" in response.data["contexts"]
     assert "catalog_journey_media" in response.data["contexts"]
+    assert (
+        response.data["contexts"]["catalog_treatment_benefits"]
+        == "catalog/items/benefits"
+    )
+    assert (
+        response.data["contexts"]["catalog_combo_benefits"]
+        == "catalog/items/benefits"
+    )
+    assert (
+        response.data["contexts"]["catalog_journey_benefits"]
+        == "catalog/journeys/benefits"
+    )
+    assert (
+        response.data["contexts"]["catalog_journey_recommended"]
+        == "catalog/journeys/recommended"
+    )
+    assert response.data["contexts"]["catalog_category"] == "catalog/categories"
+    assert (
+        response.data["contexts"]["catalog_objective"]
+        == "catalog/filters/objectives"
+    )
+
+
+@pytest.mark.django_db
+def test_upload_signature_generation_for_category(api_client):
+    response = api_client.post(
+        "/api/v1/catalog/upload/sign/",
+        {
+            "context": "catalog_category",
+            "resource_type": "image",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.data["final_public_id"].startswith(
+        f"{cloudinary_id('catalog/categories')}/"
+    )
+
+
+@pytest.mark.django_db
+def test_upload_signature_generation_for_objective(api_client):
+    response = api_client.post(
+        "/api/v1/catalog/upload/sign/",
+        {
+            "context": "catalog_objective",
+            "resource_type": "image",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.data["final_public_id"].startswith(
+        f"{cloudinary_id('catalog/filters/objectives')}/"
+    )
+
+
+@pytest.mark.django_db
+def test_upload_signature_generation_for_journey_benefits(api_client):
+    response = api_client.post(
+        "/api/v1/catalog/upload/sign/",
+        {
+            "context": "catalog_journey_benefits",
+            "resource_type": "image",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.data["final_public_id"].startswith(
+        f"{cloudinary_id('catalog/journeys/benefits')}/"
+    )
+
+
+@pytest.mark.django_db
+def test_upload_signature_generation_for_journey_recommended(api_client):
+    response = api_client.post(
+        "/api/v1/catalog/upload/sign/",
+        {
+            "context": "catalog_journey_recommended",
+            "resource_type": "image",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.data["final_public_id"].startswith(
+        f"{cloudinary_id('catalog/journeys/recommended')}/"
+    )
 
 
 @pytest.mark.django_db
@@ -899,6 +998,94 @@ def test_multipart_upload_no_longer_supported(api_client, category):
     )
 
     assert response.status_code == 415
+
+
+# ============================================================================
+# Journey Cloudinary Tests
+# ============================================================================
+
+
+@pytest.mark.django_db
+def test_create_journey_with_cloudinary_refs(api_client, category):
+    response = api_client.post(
+        "/api/v1/catalog/journeys/",
+        {
+            "title": "Test Journey",
+            "slug": "test-journey",
+            "category": str(category.id),
+            "benefits_image_ref": {
+                "public_id": cloudinary_id("catalog/journeys/benefits/test-img-123"),
+            },
+            "recommended_image_ref": {
+                "public_id": cloudinary_id(
+                    "catalog/journeys/recommended/test-img-456"
+                ),
+            },
+            "media_items": [
+                {
+                    "public_id": cloudinary_id("catalog/journeys/video-789"),
+                    "resource_type": "video",
+                }
+            ],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+
+    journey = Journey.objects.get(id=response.data["id"])
+    assert (
+        journey.benefits_image.name
+        == cloudinary_id("catalog/journeys/benefits/test-img-123")
+    )
+    assert (
+        journey.recommended_image.name
+        == cloudinary_id("catalog/journeys/recommended/test-img-456")
+    )
+    assert journey.media.count() == 1
+    assert journey.media.first().media.name == cloudinary_id("catalog/journeys/video-789")
+
+
+@pytest.mark.django_db
+def test_rejects_legacy_item_prefix_for_journey_images(api_client, category):
+    response = api_client.post(
+        "/api/v1/catalog/journeys/",
+        {
+            "title": "Journey Wrong Prefix",
+            "slug": "journey-wrong-prefix",
+            "category": str(category.id),
+            "benefits_image_ref": {
+                "public_id": cloudinary_id("catalog/items/benefits/not-allowed"),
+            },
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "benefits_image" in str(response.data)
+
+
+@pytest.mark.django_db
+def test_update_journey_preserves_journey_prefixes(api_client, journey):
+    journey.benefits_image = cloudinary_id("catalog/journeys/benefits/old-image")
+    journey.save()
+
+    response = api_client.patch(
+        f"/api/v1/catalog/journeys/{journey.id}/",
+        {
+            "benefits_image_ref": {
+                "public_id": cloudinary_id("catalog/journeys/benefits/new-image"),
+            }
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    journey.refresh_from_db()
+    assert (
+        journey.benefits_image.name
+        == cloudinary_id("catalog/journeys/benefits/new-image")
+    )
 
 
 # ============================================================================

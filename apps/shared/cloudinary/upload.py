@@ -32,9 +32,10 @@ ALLOWED_FOLDERS = {
     "catalog_combo_benefits": "catalog/items/benefits",
     "catalog_combo_recommended": "catalog/items/recommended",
     "catalog_journey_media": "catalog/journeys",
-    "catalog_journey_benefits": "catalog/items/benefits",
-    "catalog_journey_recommended": "catalog/items/recommended",
+    "catalog_journey_benefits": "catalog/journeys/benefits",
+    "catalog_journey_recommended": "catalog/journeys/recommended",
     "catalog_category": "catalog/categories",
+    "catalog_objective": "catalog/filters/objectives",
     # Waxing
     "waxing_content": "waxing/content",
     "waxing_section": "waxing/sections",

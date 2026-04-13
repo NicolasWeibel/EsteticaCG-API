@@ -18,7 +18,10 @@ from ..models import (
 )
 from ..services.pricing import effective_price_for_journey
 from ..services.uniqueness import validate_item_uniqueness
-from ..services.cloudinary_assets import CATALOG_MEDIA_PREFIXES, CATALOG_IMAGE_PREFIXES
+from ..services.cloudinary_assets import (
+    CATALOG_MEDIA_PREFIXES,
+    CATALOG_JOURNEY_IMAGE_PREFIXES,
+)
 from .base import UUIDSerializer
 from .gallery import JourneyMediaSerializer
 from .item_content import (
@@ -206,18 +209,18 @@ class JourneySerializer(
             # Apply image references
             image_update_fields = []
             if self._apply_image_input(
-                    journey,
-                    "benefits_image",
-                    benefits_image_ref,
-                    CATALOG_IMAGE_PREFIXES,
-                ):
+                journey,
+                "benefits_image",
+                benefits_image_ref,
+                CATALOG_JOURNEY_IMAGE_PREFIXES,
+            ):
                 image_update_fields.append("benefits_image")
             if self._apply_image_input(
-                    journey,
-                    "recommended_image",
-                    recommended_image_ref,
-                    CATALOG_IMAGE_PREFIXES,
-                ):
+                journey,
+                "recommended_image",
+                recommended_image_ref,
+                CATALOG_JOURNEY_IMAGE_PREFIXES,
+            ):
                 image_update_fields.append("recommended_image")
             if image_update_fields:
                 journey.save(update_fields=image_update_fields)
@@ -280,18 +283,18 @@ class JourneySerializer(
             # Apply image references
             update_fields = []
             if self._apply_image_input(
-                    journey,
-                    "benefits_image",
-                    benefits_image_ref,
-                    CATALOG_IMAGE_PREFIXES,
-                ):
+                journey,
+                "benefits_image",
+                benefits_image_ref,
+                CATALOG_JOURNEY_IMAGE_PREFIXES,
+            ):
                 update_fields.append("benefits_image")
             if self._apply_image_input(
-                    journey,
-                    "recommended_image",
-                    recommended_image_ref,
-                    CATALOG_IMAGE_PREFIXES,
-                ):
+                journey,
+                "recommended_image",
+                recommended_image_ref,
+                CATALOG_JOURNEY_IMAGE_PREFIXES,
+            ):
                 update_fields.append("recommended_image")
             if update_fields:
                 journey.save(update_fields=update_fields)

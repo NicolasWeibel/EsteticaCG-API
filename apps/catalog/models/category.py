@@ -19,7 +19,7 @@ class Category(TimeStampedUUIDModel):
 
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=120, unique=True)
-    image = models.ImageField(upload_to="categories/", blank=True, null=True)
+    image = models.ImageField(upload_to="catalog/categories/", blank=True, null=True)
     include_journeys = models.BooleanField(default=True)
     journey_position = models.CharField(
         max_length=5,

@@ -56,8 +56,15 @@ class Pack(TimeStampedUUIDModel):
     def category_ids(self):
         if not self.pk:
             return []
+
         return list(
-            self.pack_areas.values_list("area__category_id", flat=True).distinct()
+            {
+                category_id
+                for category_id in self.pack_areas.values_list(
+                    "area__category_id", flat=True
+                )
+                if category_id is not None
+            }
         )
 
     def clean(self):
@@ -69,9 +76,7 @@ class Pack(TimeStampedUUIDModel):
             and self.price is not None
             and self.promotional_price >= self.price
         ):
-            errors["promotional_price"] = (
-                "promotional_price debe ser menor que price."
-            )
+            errors["promotional_price"] = "promotional_price debe ser menor que price."
         if self.duration is not None and self.duration <= 0:
             errors["duration"] = "duration debe ser mayor a 0 o null."
 

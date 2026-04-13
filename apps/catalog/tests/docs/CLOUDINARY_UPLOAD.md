@@ -164,6 +164,11 @@ const uploadToCloudinary = async (file, signatureData) => {
 - `"catalog/items/benefits/img-123"` - String directo también válido
 - `null` - Limpiar imagen (set to null)
 
+Para `Journey`, las imágenes single usan sus propios prefijos canónicos:
+
+- `benefits_image_ref` -> `catalog/journeys/benefits/...`
+- `recommended_image_ref` -> `catalog/journeys/recommended/...`
+
 ---
 
 ## Operaciones de Actualización
@@ -241,14 +246,19 @@ Para listar todos los contextos disponibles dinámicamente:
     "catalog_treatment_media": "catalog/treatments",
     "catalog_combo_media": "catalog/combos",
     "catalog_journey_media": "catalog/journeys",
-    "catalog_items_benefits": "catalog/items/benefits",
-    "catalog_items_recommended": "catalog/items/recommended",
-    "catalog_categories": "catalog/categories",
+    "catalog_treatment_benefits": "catalog/items/benefits",
+    "catalog_treatment_recommended": "catalog/items/recommended",
+    "catalog_combo_benefits": "catalog/items/benefits",
+    "catalog_combo_recommended": "catalog/items/recommended",
+    "catalog_journey_benefits": "catalog/journeys/benefits",
+    "catalog_journey_recommended": "catalog/journeys/recommended",
+    "catalog_category": "catalog/categories",
+    "catalog_objective": "catalog/filters/objectives",
     "waxing_content": "waxing/content",
-    "waxing_sections": "waxing/sections",
-    "waxing_area_categories": "waxing/area_categories",
-    "waxing_areas": "waxing/areas",
-    "waxing_packs": "waxing/packs"
+    "waxing_section": "waxing/sections",
+    "waxing_area_category": "waxing/area_categories",
+    "waxing_area": "waxing/areas",
+    "waxing_pack": "waxing/packs"
   }
 }
 ```
@@ -260,14 +270,19 @@ Para listar todos los contextos disponibles dinámicamente:
 | `catalog_treatment_media`   | `catalog/treatments`        | Galería de treatments           | Treatment               |
 | `catalog_combo_media`       | `catalog/combos`            | Galería de combos               | Combo                   |
 | `catalog_journey_media`     | `catalog/journeys`          | Galería de journeys             | Journey                 |
-| `catalog_items_benefits`    | `catalog/items/benefits`    | Imágenes de beneficios          | Treatment/Combo/Journey |
-| `catalog_items_recommended` | `catalog/items/recommended` | Imágenes recomendadas           | Treatment/Combo/Journey |
-| `catalog_categories`        | `catalog/categories`        | Imágenes de categorías          | Category                |
+| `catalog_treatment_benefits` | `catalog/items/benefits`    | Imágenes de beneficios          | Treatment               |
+| `catalog_treatment_recommended` | `catalog/items/recommended` | Imágenes recomendadas       | Treatment               |
+| `catalog_combo_benefits`    | `catalog/items/benefits`    | Imágenes de beneficios          | Combo                   |
+| `catalog_combo_recommended` | `catalog/items/recommended` | Imágenes recomendadas           | Combo                   |
+| `catalog_journey_benefits`  | `catalog/journeys/benefits` | Imágenes de beneficios          | Journey                 |
+| `catalog_journey_recommended` | `catalog/journeys/recommended` | Imágenes recomendadas      | Journey                 |
+| `catalog_category`          | `catalog/categories`        | Imágenes de categorías          | Category                |
+| `catalog_objective`         | `catalog/filters/objectives` | Imágenes de objetivos          | Objective               |
 | `waxing_content`            | `waxing/content`            | Imágenes de waxing content      | WaxingContent           |
-| `waxing_sections`           | `waxing/sections`           | Imágenes de secciones           | Section                 |
-| `waxing_area_categories`    | `waxing/area_categories`    | Imágenes de categorías de áreas | AreaCategory            |
-| `waxing_areas`              | `waxing/areas`              | Imágenes de áreas               | Area                    |
-| `waxing_packs`              | `waxing/packs`              | Imágenes de packs               | Pack                    |
+| `waxing_section`            | `waxing/sections`           | Imágenes de secciones           | Section                 |
+| `waxing_area_category`      | `waxing/area_categories`    | Imágenes de categorías de áreas | AreaCategory            |
+| `waxing_area`               | `waxing/areas`              | Imágenes de áreas               | Area                    |
+| `waxing_pack`               | `waxing/packs`              | Imágenes de packs               | Pack                    |
 
 ---
 
