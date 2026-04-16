@@ -135,6 +135,7 @@ def test_public_endpoint_contract():
     assert "promotional_price" not in featured_by_name["Axilas"]
     assert featured_by_name["Pack Premium"]["price"] == 12000
     assert featured_by_name["Pack Premium"]["price_without_discount"] == 15000
+    assert featured_by_name["Pack Premium"]["area_names"] == ["Axilas"]
     assert "promotional_price" not in featured_by_name["Pack Premium"]
     category_items = response.data["sections_by_gender"]["mujer"]["categories"][0]["items"]
     items_by_name = {item["name"]: item for item in category_items}
@@ -143,6 +144,7 @@ def test_public_endpoint_contract():
     assert "promotional_price" not in items_by_name["Axilas"]
     assert items_by_name["Pack Premium"]["price"] == 12000
     assert items_by_name["Pack Premium"]["price_without_discount"] == 15000
+    assert items_by_name["Pack Premium"]["area_names"] == ["Axilas"]
     assert "promotional_price" not in items_by_name["Pack Premium"]
     assert response.data["content"]["title"] == "Sobre depilacion"
     assert "image" in response.data["content"]
@@ -202,6 +204,7 @@ def test_public_hides_price_and_price_without_discount_when_show_prices_is_false
     assert items_by_name["Axilas"]["price_without_discount"] is None
     assert items_by_name["Pack Premium"]["price"] is None
     assert items_by_name["Pack Premium"]["price_without_discount"] is None
+    assert items_by_name["Pack Premium"]["area_names"] == ["Axilas"]
 
     featured_items = response.data["featured_by_gender"]["mujer"]
     featured_by_name = {item["name"]: item for item in featured_items}
@@ -209,6 +212,7 @@ def test_public_hides_price_and_price_without_discount_when_show_prices_is_false
     assert featured_by_name["Axilas"]["price_without_discount"] is None
     assert featured_by_name["Pack Premium"]["price"] is None
     assert featured_by_name["Pack Premium"]["price_without_discount"] is None
+    assert featured_by_name["Pack Premium"]["area_names"] == ["Axilas"]
 
 
 @pytest.mark.django_db
@@ -496,6 +500,44 @@ def test_multi_category_pack_not_shown_inside_categories():
 
 
 @pytest.mark.django_db
+def test_pack_area_names_follow_category_and_category_area_order():
+    client = APIClient()
+    section = _create_section("mujer", featured_sort=SortOption.MANUAL)
+    cat_b = _create_category(
+        section,
+        name="B Category",
+        order=2,
+        area_sort=SortOption.PRICE_ASC,
+        show_packs=True,
+    )
+    cat_a = _create_category(
+        section,
+        name="A Category",
+        order=1,
+        area_sort=SortOption.MANUAL,
+        show_packs=True,
+    )
+
+    area_b_high = _create_area(section, cat_b, name="B high", order=2, price=3000)
+    area_b_low = _create_area(section, cat_b, name="B low", order=1, price=1000)
+    area_a_second = _create_area(section, cat_a, name="A second", order=2, price=2500)
+    area_a_first = _create_area(section, cat_a, name="A first", order=1, price=2000)
+
+    pack = _create_pack(section, name="Pack Multi Cat", is_featured=True)
+    PackArea.objects.create(pack=pack, area=area_b_high, order=0)
+    PackArea.objects.create(pack=pack, area=area_a_second, order=1)
+    PackArea.objects.create(pack=pack, area=area_b_low, order=2)
+    PackArea.objects.create(pack=pack, area=area_a_first, order=3)
+
+    response = client.get("/api/v1/waxing/?section=mujer")
+    assert response.status_code == 200
+
+    featured_items = response.data["featured_by_gender"]["mujer"]
+    featured_pack = next(item for item in featured_items if item["name"] == "Pack Multi Cat")
+    assert featured_pack["area_names"] == ["A first", "A second", "B low", "B high"]
+
+
+@pytest.mark.django_db
 def test_featured_mixed_manual_and_non_manual_ordering():
     client = APIClient()
     section = _create_section("mujer", featured_sort=SortOption.MANUAL)
@@ -599,6 +641,8 @@ def test_category_area_pack_ordering_and_mix_respects_pack_position():
         ("area", "Area 1"),
         ("area", "Area 2"),
     ]
+    assert first_category_items[0]["area_names"] == ["Area 2"]
+    assert first_category_items[1]["area_names"] == ["Area 1"]
 
 
 @pytest.mark.django_db

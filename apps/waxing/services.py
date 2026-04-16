@@ -75,6 +75,33 @@ def serialize_area(area: Area, show_prices: bool = True):
     }
 
 
+def ordered_pack_area_names(pack: Pack):
+    pack_areas = list(pack.pack_areas.all())
+    areas_by_category = {}
+    category_map = {}
+
+    for pack_area in pack_areas:
+        area = pack_area.area
+        category = area.category
+        category_map[category.id] = category
+        areas_by_category.setdefault(category.id, []).append(area)
+
+    ordered_categories = sorted(
+        category_map.values(),
+        key=lambda category: (category.order, (category.name or "").lower()),
+    )
+
+    ordered_names = []
+    for category in ordered_categories:
+        sorted_areas = sort_items(
+            areas_by_category.get(category.id, []),
+            category.area_sort,
+        )
+        ordered_names.extend(area.name for area in sorted_areas)
+
+    return ordered_names
+
+
 def serialize_pack(pack: Pack, show_prices: bool = True):
     effective_price, base_price = _price_pair(pack)
     return {
@@ -88,6 +115,7 @@ def serialize_pack(pack: Pack, show_prices: bool = True):
         "short_description": pack.short_description,
         "description": pack.description,
         "image": image_url(pack.image),
+        "area_names": ordered_pack_area_names(pack),
         "is_featured": pack.is_featured,
         "order": pack.order,
     }
@@ -126,7 +154,7 @@ def serialize_category(
 def single_category_packs_for_category(category: AreaCategory):
     packs = (
         Pack.objects.filter(section=category.section, is_active=True)
-        .prefetch_related("pack_areas__area")
+        .prefetch_related("pack_areas__area__category")
         .all()
     )
     eligible = []
@@ -139,7 +167,9 @@ def single_category_packs_for_category(category: AreaCategory):
 
 def sort_featured_items(section, sort_key: str):
     areas = section.areas.filter(is_active=True, is_featured=True)
-    packs = section.packs.filter(is_active=True, is_featured=True)
+    packs = section.packs.filter(is_active=True, is_featured=True).prefetch_related(
+        "pack_areas__area__category"
+    )
     mixed = [("area", area) for area in areas] + [("pack", pack) for pack in packs]
 
     if sort_key == SortOption.MANUAL:
