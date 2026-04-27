@@ -33,9 +33,15 @@ def _clean_value(value):
     return value
 
 
-def _apply_updates(client: Client, **data) -> bool:
+def _apply_updates(client: Client, clearable_fields=None, **data) -> bool:
     changed = False
+    clearable = set(clearable_fields or [])
     for field, value in data.items():
+        if field in clearable and value is None:
+            if getattr(client, field) is not None:
+                setattr(client, field, None)
+                changed = True
+            continue
         cleaned = _clean_value(value)
         if cleaned is None:
             continue
@@ -299,5 +305,9 @@ def update_client_profile(*, user, data: dict):
     else:
         payload["email"] = normalized_email
 
-    _apply_updates(client, **payload)
+    _apply_updates(
+        client,
+        clearable_fields={"birth_date", "custom_avatar"},
+        **payload,
+    )
     return client

@@ -1,5 +1,4 @@
 from rest_framework import viewsets
-from rest_framework.parsers import JSONParser
 
 from ..models import (
     Area,
@@ -96,7 +95,6 @@ class WaxingContentViewSet(viewsets.ModelViewSet):
     queryset = WaxingContent.objects.all().order_by("created_at")
     serializer_class = WaxingContentSerializer
     permission_classes = [IsAdminOrReadOnly]
-    parser_classes = [JSONParser]
 
 
 class BenefitItemViewSet(viewsets.ModelViewSet):

@@ -357,6 +357,63 @@ def test_update_objective_with_cloudinary_image_ref_and_clear(api_client, catego
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("url", "payload"),
+    [
+        (
+            "/api/v1/catalog/categories/",
+            {
+                "name": "Multipart Category",
+                "slug": "multipart-category",
+            },
+        ),
+        (
+            "/api/v1/catalog/filters/objectives/",
+            {
+                "name": "Multipart Objective",
+            },
+        ),
+        (
+            "/api/v1/catalog/treatments/",
+            {
+                "title": "Multipart Treatment",
+                "slug": "multipart-treatment",
+                "requires_zones": False,
+                "is_active": False,
+            },
+        ),
+        (
+            "/api/v1/catalog/combos/",
+            {
+                "title": "Multipart Combo",
+                "slug": "multipart-combo",
+                "price": "1000.00",
+                "is_active": False,
+            },
+        ),
+        (
+            "/api/v1/catalog/journeys/",
+            {
+                "title": "Multipart Journey",
+                "slug": "multipart-journey",
+            },
+        ),
+    ],
+)
+def test_catalog_cloudinary_endpoints_reject_multipart(api_client, category, url, payload):
+    response = api_client.post(
+        url,
+        {
+            **payload,
+            "category": str(category.id),
+        },
+        format="multipart",
+    )
+
+    assert response.status_code == 415
+
+
+@pytest.mark.django_db
 def test_upload_signature_generation_for_journey_benefits(api_client):
     response = api_client.post(
         "/api/v1/catalog/upload/sign/",
@@ -1081,29 +1138,6 @@ def test_cannot_reference_other_treatment_media(api_client, category, treatment)
 # ============================================================================
 # Content-Type Enforcement Tests
 # ============================================================================
-
-
-@pytest.mark.django_db
-def test_multipart_upload_no_longer_supported(api_client, category):
-    """Verify that multipart/form-data uploads are no longer accepted."""
-    # Note: This test depends on ViewSet having parser_classes = [JSONParser]
-    # If multipart parser is still enabled, this test may need adjustment
-
-    # Try to upload with multipart (old way)
-    response = api_client.post(
-        "/api/v1/catalog/treatments/",
-        {
-            "title": "Multipart Test",
-            "slug": "multipart-test",
-            "category": str(category.id),
-            "requires_zones": False,
-            "is_active": False,
-            # This would be a file upload in old implementation
-        },
-        format="multipart",
-    )
-
-    assert response.status_code == 415
 
 
 # ============================================================================

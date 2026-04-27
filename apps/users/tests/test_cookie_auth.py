@@ -1,8 +1,10 @@
 import pytest
+from django.conf import settings as django_settings
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
 from apps.authcodes.models import OTPLoginCode
+from apps.users.models import Client
 
 
 def _disable_throttling(settings):
@@ -10,6 +12,11 @@ def _disable_throttling(settings):
         **settings.REST_FRAMEWORK,
         "DEFAULT_THROTTLE_CLASSES": [],
     }
+
+
+def _cloudinary_id(path: str) -> str:
+    prefix = django_settings.CLOUDINARY_STORAGE.get("PREFIX", "")
+    return f"{prefix}/{path}" if prefix else path
 
 
 @pytest.mark.django_db
@@ -250,3 +257,166 @@ def test_cookie_authenticated_write_requires_csrf(settings):
 
     assert allowed.status_code == 200
     assert allowed.data["email"] == email
+
+
+@pytest.mark.django_db
+def test_me_rejects_multipart_with_global_json_parser():
+    user = get_user_model().objects.create_user(email="multipart-me@example.com")
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.put(
+        "/api/v1/auth/me/",
+        {},
+        format="multipart",
+    )
+
+    assert response.status_code == 415
+
+
+@pytest.mark.django_db
+def test_client_avatar_upload_signature_requires_auth():
+    client = APIClient()
+
+    response = client.post(
+        "/api/v1/auth/upload/client-avatar/sign/",
+        {"filename": "avatar.png"},
+        format="json",
+    )
+
+    assert response.status_code in (401, 403)
+
+
+@pytest.mark.django_db
+def test_client_avatar_upload_signature_returns_cloudinary_avatar_prefix():
+    user = get_user_model().objects.create_user(email="multipart-profile@example.com")
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.post(
+        "/api/v1/auth/upload/client-avatar/sign/",
+        {"filename": "avatar.png"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.data["resource_type"] == "image"
+    assert response.data["final_public_id"].startswith(
+        f"{_cloudinary_id('users/clients/avatars')}/"
+    )
+
+
+@pytest.mark.django_db
+def test_profile_accepts_custom_avatar_ref_json_and_clear():
+    user = get_user_model().objects.create_user(email="multipart-profile@example.com")
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.patch(
+        "/api/v1/auth/profile/",
+        {
+            "first_name": "Nico",
+            "custom_avatar_ref": {
+                "public_id": _cloudinary_id("users/clients/avatars/profile-avatar")
+            },
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    managed_client = Client.objects.get(user=user)
+    assert managed_client.first_name == "Nico"
+    assert managed_client.custom_avatar.name == _cloudinary_id(
+        "users/clients/avatars/profile-avatar"
+    )
+
+    response = client.patch(
+        "/api/v1/auth/profile/",
+        {
+            "custom_avatar_ref": None,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    managed_client.refresh_from_db()
+    assert not managed_client.custom_avatar
+
+
+@pytest.mark.django_db
+def test_profile_rejects_multipart_for_custom_avatar():
+    user = get_user_model().objects.create_user(email="multipart-profile@example.com")
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.patch(
+        "/api/v1/auth/profile/",
+        {
+            "first_name": "Nico",
+        },
+        format="multipart",
+    )
+
+    assert response.status_code == 415
+
+
+@pytest.mark.django_db
+def test_client_admin_accepts_custom_avatar_ref_json():
+    admin = get_user_model().objects.create_superuser(
+        email="admin-clients@example.com",
+        password="admin1234",
+    )
+    managed_user = get_user_model().objects.create_user(email="managed@example.com")
+    managed_client = Client.objects.create(
+        user=managed_user,
+        email=managed_user.email,
+        first_name="Before",
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.patch(
+        f"/api/v1/auth/clients/{managed_client.id}/",
+        {
+            "first_name": "After",
+            "custom_avatar_ref": {
+                "public_id": _cloudinary_id("users/clients/avatars/admin-avatar")
+            },
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.data["first_name"] == "After"
+    managed_client.refresh_from_db()
+    assert managed_client.custom_avatar.name == _cloudinary_id(
+        "users/clients/avatars/admin-avatar"
+    )
+
+
+@pytest.mark.django_db
+def test_client_admin_rejects_multipart_for_avatar():
+    admin = get_user_model().objects.create_superuser(
+        email="admin-clients@example.com",
+        password="admin1234",
+    )
+    managed_user = get_user_model().objects.create_user(email="managed@example.com")
+    managed_client = Client.objects.create(
+        user=managed_user,
+        email=managed_user.email,
+        first_name="Before",
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=admin)
+
+    response = client.patch(
+        f"/api/v1/auth/clients/{managed_client.id}/",
+        {
+            "first_name": "After",
+        },
+        format="multipart",
+    )
+
+    assert response.status_code == 415

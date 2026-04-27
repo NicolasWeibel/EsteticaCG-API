@@ -78,6 +78,66 @@ def _create_pack(section: Section, **kwargs) -> Pack:
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("url", "payload_factory"),
+    [
+        (
+            "/api/v1/waxing/sections/",
+            lambda section, category: {
+                "name": _uid("multipart-section"),
+            },
+        ),
+        (
+            "/api/v1/waxing/area_categories/",
+            lambda section, category: {
+                "section": str(section.id),
+                "name": _uid("multipart-category"),
+            },
+        ),
+        (
+            "/api/v1/waxing/areas/",
+            lambda section, category: {
+                "section": str(section.id),
+                "category": str(category.id),
+                "name": _uid("multipart-area"),
+                "price": 1000,
+            },
+        ),
+        (
+            "/api/v1/waxing/packs/",
+            lambda section, category: {
+                "section": str(section.id),
+                "name": _uid("multipart-pack"),
+                "price": 5000,
+            },
+        ),
+        (
+            "/api/v1/waxing/content/",
+            lambda section, category: {
+                "title": "Multipart Content",
+                "description": "Multipart content body",
+            },
+        ),
+    ],
+)
+def test_waxing_cloudinary_endpoints_reject_multipart(url, payload_factory):
+    staff = _staff_user()
+    client = APIClient()
+    client.force_authenticate(staff)
+
+    section = _create_section(_uid("base-section"))
+    category = _create_category(section)
+
+    response = client.post(
+        url,
+        payload_factory(section, category),
+        format="multipart",
+    )
+
+    assert response.status_code == 415
+
+
+@pytest.mark.django_db
 def test_public_endpoint_contract():
     client = APIClient()
     mujer = _create_section("mujer", featured_sort=SortOption.MANUAL)

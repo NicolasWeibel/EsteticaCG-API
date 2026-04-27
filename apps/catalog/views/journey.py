@@ -1,6 +1,5 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.parsers import JSONParser
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 
@@ -24,7 +23,6 @@ class JourneyViewSet(GalleryOrderingMixin, viewsets.ModelViewSet):
     )
     serializer_class = JourneySerializer
     permission_classes = [IsAdminOrReadOnly]
-    parser_classes = [JSONParser]
     media_serializer_class = JourneyMediaSerializer
     filterset_fields = ["category"]
 

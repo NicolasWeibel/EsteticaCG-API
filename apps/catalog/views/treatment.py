@@ -1,7 +1,6 @@
 from rest_framework import viewsets
 from django.db.models import Avg, Min
 from rest_framework.decorators import action
-from rest_framework.parsers import JSONParser
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from ..permissions import IsAdminOrReadOnly
@@ -34,7 +33,6 @@ class TreatmentViewSet(GalleryOrderingMixin, viewsets.ModelViewSet):
     )
     serializer_class = TreatmentSerializer
     permission_classes = [IsAdminOrReadOnly]
-    parser_classes = [JSONParser]
     media_serializer_class = TreatmentMediaSerializer
     filterset_fields = ["category", "journey"]
     search_fields = ["title", "description"]

@@ -3,6 +3,10 @@
 # ===========================================
 from django.urls import path
 from rest_framework.routers import SimpleRouter
+from .upload import (
+    ClientAvatarUploadCleanupView,
+    ClientAvatarUploadSignatureView,
+)
 from .views import (
     CsrfTokenView,
     SessionToJWTView,
@@ -23,6 +27,16 @@ urlpatterns = [
     path("csrf/", CsrfTokenView.as_view(), name="csrf"),
     path("session-to-jwt/", SessionToJWTView.as_view(), name="session-to-jwt"),
     path("logout/", LogoutView.as_view(), name="logout"),
+    path(
+        "upload/client-avatar/sign/",
+        ClientAvatarUploadSignatureView.as_view(),
+        name="client-avatar-upload-sign",
+    ),
+    path(
+        "upload/client-avatar/cleanup/",
+        ClientAvatarUploadCleanupView.as_view(),
+        name="client-avatar-upload-cleanup",
+    ),
     path("me/", MeView.as_view(), name="me"),
     path("profile/", ProfileView.as_view(), name="profile"),
     path(

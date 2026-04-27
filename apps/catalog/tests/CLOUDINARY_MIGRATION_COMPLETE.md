@@ -39,12 +39,11 @@ Todos los serializers ahora usan `CloudinaryMediaMixin` y aceptan referencias JS
 
 ### 2. ✅ ViewSets Actualizados (100%)
 
-Todos los viewsets ahora solo aceptan JSON:
+Todos los endpoints migrados ahora solo aceptan JSON.
 
-- **`TreatmentViewSet`** - `parser_classes = [JSONParser]` ✅
-- **`ComboViewSet`** - `parser_classes = [JSONParser]` ✅
-- **`JourneyViewSet`** - `parser_classes = [JSONParser]` ✅
-- **`WaxingContentViewSet`** - `parser_classes = [JSONParser]` ✅
+- **Contrato actual** - `JSONParser` configurado globalmente en `REST_FRAMEWORK["DEFAULT_PARSER_CLASSES"]` ✅
+- **ViewSets migrados** - `Treatment`, `Combo`, `Journey` y `WaxingContent` heredan ese comportamiento sin declarar parsers redundantes ✅
+- **Excepciones** - solo los endpoints que realmente necesiten `multipart` o `form-data` deben declarar `parser_classes` explícitamente ✅
 
 ### 3. ✅ Tests Creados (100%)
 

@@ -1,6 +1,26 @@
 # apps/users/api/v1/serializers.py
 from rest_framework import serializers
+from apps.shared.cloudinary import CloudinaryValidationError, validate_cloudinary_asset
 from apps.users.models import User, Client
+from apps.users.cloudinary import CLIENT_AVATAR_PREFIXES
+
+
+def _validate_custom_avatar_ref(value):
+    if value in ("", {}):
+        return None
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = {"public_id": value}
+    value = {**value, "resource_type": "image"}
+    try:
+        ref = validate_cloudinary_asset(
+            reference=value,
+            allowed_prefixes=CLIENT_AVATAR_PREFIXES,
+        )
+    except CloudinaryValidationError as exc:
+        raise serializers.ValidationError(str(exc))
+    return ref.public_id
 
 
 class ClientMeSerializer(serializers.ModelSerializer):
@@ -41,11 +61,20 @@ class ClientProfileUpdateSerializer(serializers.Serializer):
         choices=Client.Gender.choices, required=False, allow_blank=True
     )
     phone_number = serializers.CharField(required=False, allow_blank=True)
-    custom_avatar = serializers.ImageField(required=False)
+    custom_avatar_ref = serializers.JSONField(
+        source="custom_avatar",
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text="Cloudinary ref: {'public_id': '...'} or string, or null to clear",
+    )
     birth_date = serializers.DateField(required=False, allow_null=True)
     dni_verification_code = serializers.CharField(
         required=False, allow_blank=True, write_only=True
     )
+
+    def validate_custom_avatar_ref(self, value):
+        return _validate_custom_avatar_ref(value)
 
 
 class ClientAdminSerializer(serializers.ModelSerializer):
@@ -55,6 +84,13 @@ class ClientAdminSerializer(serializers.ModelSerializer):
     has_user = serializers.SerializerMethodField(read_only=True)
 
     avatar_url = serializers.SerializerMethodField(read_only=True)
+    custom_avatar_ref = serializers.JSONField(
+        source="custom_avatar",
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text="Cloudinary ref: {'public_id': '...'} or string, or null to clear",
+    )
 
     class Meta:
         model = Client
@@ -70,6 +106,7 @@ class ClientAdminSerializer(serializers.ModelSerializer):
             "phone_number",
             "google_avatar_url",
             "custom_avatar",
+            "custom_avatar_ref",
             "avatar_url",
             "birth_date",
             "created_at",
@@ -78,7 +115,10 @@ class ClientAdminSerializer(serializers.ModelSerializer):
             "bookings_count",
             "notes",
         )
-        read_only_fields = ("id", "created_at", "updated_at")
+        read_only_fields = ("id", "created_at", "updated_at", "custom_avatar")
+
+    def validate_custom_avatar_ref(self, value):
+        return _validate_custom_avatar_ref(value)
 
     def get_has_user(self, obj):
         return bool(obj.user_id)

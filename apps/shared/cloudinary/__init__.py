@@ -1,5 +1,6 @@
 from .upload import (
     generate_upload_signature,
+    generate_upload_signature_for_folder,
     get_allowed_contexts,
     validate_upload_context,
     get_allowed_prefixes_for_context,
@@ -27,6 +28,7 @@ from .fields import (
 __all__ = [
     # Upload
     "generate_upload_signature",
+    "generate_upload_signature_for_folder",
     "get_allowed_contexts",
     "validate_upload_context",
     "get_allowed_prefixes_for_context",

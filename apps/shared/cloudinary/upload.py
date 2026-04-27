@@ -100,54 +100,35 @@ def _generate_public_id(original_filename: Optional[str] = None) -> str:
     return f"upload-{suffix}"
 
 
-def generate_upload_signature(
-    context: str,
-    resource_type: RESOURCE_TYPES = "auto",
-    original_filename: Optional[str] = None,
-    eager_transformations: Optional[list] = None,
+def _build_upload_params(
+    *,
+    folder: str,
+    resource_type: RESOURCE_TYPES,
+    original_filename: Optional[str],
+    eager_transformations: Optional[list],
 ) -> UploadParams:
-    """
-    Generate signed upload parameters for direct client upload to Cloudinary.
-
-    Args:
-        context: Upload context key (e.g., "catalog_treatment_media")
-        resource_type: Type of resource ("image", "video", or "auto")
-        original_filename: Optional original filename for naming
-        eager_transformations: Optional list of eager transformations
-
-    Returns:
-        UploadParams with all data needed for client-side upload
-
-    Raises:
-        ValueError: If context is not allowed
-    """
-    if context not in ALLOWED_FOLDERS:
-        raise ValueError(f"Invalid upload context: {context}")
-    if resource_type not in ("image", "video", "auto"):
-        raise ValueError(
-            "Invalid resource_type. Allowed: ['image', 'video', 'auto']"
-        )
-
     config = _get_cloudinary_config()
     folder_prefix = getattr(settings, "CLOUDINARY_STORAGE", {}).get("PREFIX", "")
-    base_folder = ALLOWED_FOLDERS[context]
-    full_folder = f"{folder_prefix}/{base_folder}" if folder_prefix else base_folder
+    clean_folder = (folder or "").strip().strip("/")
+    if not clean_folder:
+        raise ValueError("folder is required")
+    full_folder = (
+        f"{folder_prefix}/{clean_folder}" if folder_prefix else clean_folder
+    )
 
     upload_public_id = _generate_public_id(original_filename)
     final_public_id = f"{full_folder}/{upload_public_id}"
     timestamp = int(time.time())
 
-    # Determine resource type and constraints
     if resource_type == "auto":
         effective_resource_type = "auto"
         allowed_formats = ALLOWED_FORMATS["image"] + ALLOWED_FORMATS["video"]
-        max_size = MAX_FILE_SIZES["video"]  # Use larger limit for auto
+        max_size = MAX_FILE_SIZES["video"]
     else:
         effective_resource_type = resource_type
         allowed_formats = ALLOWED_FORMATS.get(resource_type, [])
         max_size = MAX_FILE_SIZES.get(resource_type, MAX_FILE_SIZES["image"])
 
-    # Build parameters for signature
     params = {
         "timestamp": timestamp,
         "public_id": upload_public_id,
@@ -157,8 +138,6 @@ def generate_upload_signature(
     if eager_transformations:
         params["eager"] = eager_transformations
 
-    # Generate signature using Cloudinary SDK
-    # The SDK handles proper sorting and string encoding
     cloudinary.config(
         cloud_name=config["cloud_name"],
         api_key=config["api_key"],
@@ -186,6 +165,65 @@ def generate_upload_signature(
         allowed_formats=allowed_formats,
         max_file_size=max_size,
         upload_url=upload_url,
+    )
+
+
+def generate_upload_signature_for_folder(
+    folder: str,
+    resource_type: RESOURCE_TYPES = "auto",
+    original_filename: Optional[str] = None,
+    eager_transformations: Optional[list] = None,
+) -> UploadParams:
+    """
+    Generate signed upload params for a specific folder path.
+
+    This is intended for modules that need direct-upload signing without
+    registering a public shared context key.
+    """
+    if resource_type not in ("image", "video", "auto"):
+        raise ValueError(
+            "Invalid resource_type. Allowed: ['image', 'video', 'auto']"
+        )
+    return _build_upload_params(
+        folder=folder,
+        resource_type=resource_type,
+        original_filename=original_filename,
+        eager_transformations=eager_transformations,
+    )
+
+
+def generate_upload_signature(
+    context: str,
+    resource_type: RESOURCE_TYPES = "auto",
+    original_filename: Optional[str] = None,
+    eager_transformations: Optional[list] = None,
+) -> UploadParams:
+    """
+    Generate signed upload parameters for direct client upload to Cloudinary.
+
+    Args:
+        context: Upload context key (e.g., "catalog_treatment_media")
+        resource_type: Type of resource ("image", "video", or "auto")
+        original_filename: Optional original filename for naming
+        eager_transformations: Optional list of eager transformations
+
+    Returns:
+        UploadParams with all data needed for client-side upload
+
+    Raises:
+        ValueError: If context is not allowed
+    """
+    if context not in ALLOWED_FOLDERS:
+        raise ValueError(f"Invalid upload context: {context}")
+    if resource_type not in ("image", "video", "auto"):
+        raise ValueError(
+            "Invalid resource_type. Allowed: ['image', 'video', 'auto']"
+        )
+    return _build_upload_params(
+        folder=ALLOWED_FOLDERS[context],
+        resource_type=resource_type,
+        original_filename=original_filename,
+        eager_transformations=eager_transformations,
     )
 
 

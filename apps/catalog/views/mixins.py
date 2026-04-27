@@ -1,7 +1,6 @@
 from rest_framework import status
 from rest_framework.response import Response
 
-from apps.shared.rest_mixins import MultipartJsonMixin
 from ..utils.gallery import reorder_gallery
 
 

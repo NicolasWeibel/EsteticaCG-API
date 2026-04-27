@@ -1,6 +1,5 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.parsers import JSONParser
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 
@@ -33,7 +32,6 @@ class ComboViewSet(GalleryOrderingMixin, viewsets.ModelViewSet):
     )
     serializer_class = ComboSerializer
     permission_classes = [IsAdminOrReadOnly]
-    parser_classes = [JSONParser]
     media_serializer_class = ComboMediaSerializer
     filterset_fields = [
         "category",
