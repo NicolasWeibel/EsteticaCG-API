@@ -15,7 +15,7 @@ from django.conf import settings
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 
-from apps.catalog.models import Category, Journey, Treatment, TreatmentMedia
+from apps.catalog.models import Category, Journey, Objective, Treatment, TreatmentMedia
 from apps.shared.cloudinary.upload import generate_upload_signature
 
 User = get_user_model()
@@ -248,6 +248,112 @@ def test_upload_signature_generation_for_objective(api_client):
     assert response.data["final_public_id"].startswith(
         f"{cloudinary_id('catalog/filters/objectives')}/"
     )
+
+
+@pytest.mark.django_db
+def test_create_category_with_cloudinary_image_ref(api_client):
+    response = api_client.post(
+        "/api/v1/catalog/categories/",
+        {
+            "name": "Facial Cloudinary",
+            "slug": "facial-cloudinary",
+            "image_ref": {
+                "public_id": cloudinary_id(
+                    "catalog/categories/facial-cloudinary-image"
+                )
+            },
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    category = Category.objects.get(id=response.data["id"])
+    assert category.image.name == cloudinary_id(
+        "catalog/categories/facial-cloudinary-image"
+    )
+
+
+@pytest.mark.django_db
+def test_update_category_with_cloudinary_image_ref_and_clear(api_client, category):
+    response = api_client.patch(
+        f"/api/v1/catalog/categories/{category.id}/",
+        {
+            "image_ref": {
+                "public_id": cloudinary_id("catalog/categories/test-category-image")
+            }
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    category.refresh_from_db()
+    assert category.image.name == cloudinary_id("catalog/categories/test-category-image")
+
+    response = api_client.patch(
+        f"/api/v1/catalog/categories/{category.id}/",
+        {"image_ref": None},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    category.refresh_from_db()
+    assert not category.image
+
+
+@pytest.mark.django_db
+def test_create_objective_with_cloudinary_image_ref(api_client, category):
+    response = api_client.post(
+        "/api/v1/catalog/filters/objectives/",
+        {
+            "name": "Objective Cloudinary",
+            "category": str(category.id),
+            "image_ref": {
+                "public_id": cloudinary_id(
+                    "catalog/filters/objectives/objective-cloudinary-image"
+                )
+            },
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    objective = Objective.objects.get(id=response.data["id"])
+    assert objective.image.name == cloudinary_id(
+        "catalog/filters/objectives/objective-cloudinary-image"
+    )
+
+
+@pytest.mark.django_db
+def test_update_objective_with_cloudinary_image_ref_and_clear(api_client, category):
+    objective = Objective.objects.create(name="Objective Patch", category=category)
+
+    response = api_client.patch(
+        f"/api/v1/catalog/filters/objectives/{objective.id}/",
+        {
+            "image_ref": {
+                "public_id": cloudinary_id(
+                    "catalog/filters/objectives/objective-patch-image"
+                )
+            }
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    objective.refresh_from_db()
+    assert objective.image.name == cloudinary_id(
+        "catalog/filters/objectives/objective-patch-image"
+    )
+
+    response = api_client.patch(
+        f"/api/v1/catalog/filters/objectives/{objective.id}/",
+        {"image_ref": None},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    objective.refresh_from_db()
+    assert not objective.image
 
 
 @pytest.mark.django_db

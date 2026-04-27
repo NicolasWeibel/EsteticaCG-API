@@ -21,6 +21,7 @@ from .models import (
     ComboIngredient,
     ComboSessionItem,
     Category,
+    Objective,
 )
 from .models.placement import PlacementItem
 from .services.commands import (
@@ -344,6 +345,12 @@ def cleanup_category_image_on_delete(sender, instance, **kwargs):
     delete_cloudinary_file(instance.image)
 
 
+@receiver(post_delete, sender=Objective)
+def cleanup_objective_image_on_delete(sender, instance, **kwargs):
+    """Cleanup objective image from Cloudinary."""
+    delete_cloudinary_file(instance.image)
+
+
 # =========================
 # Image replacement cleanup
 # =========================
@@ -396,6 +403,18 @@ def capture_category_old_image(sender, instance, **kwargs):
 
 @receiver(post_save, sender=Category)
 def cleanup_category_old_image(sender, instance, **kwargs):
+    """Cleanup old image after new one is saved successfully."""
+    cleanup_old_images_after_save(instance)
+
+
+@receiver(pre_save, sender=Objective)
+def capture_objective_old_image(sender, instance, **kwargs):
+    """Capture old image before saving."""
+    capture_old_image_for_cleanup(instance, "image")
+
+
+@receiver(post_save, sender=Objective)
+def cleanup_objective_old_image(sender, instance, **kwargs):
     """Cleanup old image after new one is saved successfully."""
     cleanup_old_images_after_save(instance)
 
